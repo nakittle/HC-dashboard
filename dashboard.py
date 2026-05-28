@@ -66,6 +66,17 @@ sel_regions = st.sidebar.multiselect(
     help="เลือก 1+ ภูมิภาค"
 )
 
+# Health Zone filter
+if "เขตสุขภาพ" in df.columns:
+    zones = sorted(df["เขตสุขภาพ"].dropna().unique().tolist())
+    sel_zones = st.sidebar.multiselect(
+        "เขตสุขภาพ", zones, default=zones,
+        format_func=lambda z: f"เขต {z}",
+        help="เขตสุขภาพของกระทรวงสาธารณสุข 1-13",
+    )
+else:
+    sel_zones = None
+
 # Province filter (cascade from region)
 provs_available = sorted(df[df["ภูมิภาค"].isin(sel_regions)]["จังหวัด"].dropna().unique().tolist())
 sel_provs = st.sidebar.multiselect(
@@ -91,6 +102,8 @@ sel_crits = st.sidebar.multiselect(
 f = df[df["ภูมิภาค"].isin(sel_regions) & df["HC_Group_TH"].isin(sel_groups) & df["Criteria"].isin(sel_crits)]
 if sel_provs:
     f = f[f["จังหวัด"].isin(sel_provs)]
+if sel_zones is not None and "เขตสุขภาพ" in f.columns:
+    f = f[f["เขตสุขภาพ"].isin(sel_zones)]
 
 st.sidebar.divider()
 st.sidebar.metric("รายการที่เลือก", f"{len(f):,} / {len(df):,}")
@@ -294,9 +307,104 @@ st.divider()
 
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 4: FAILED NUTRIENT DEEP-DIVE
+# SECTION 4: HEALTH ZONE ANALYSIS (เขตสุขภาพ)
 # ════════════════════════════════════════════════════════════════════
-st.header("4️⃣ วิเคราะห์สารอาหารที่ทำให้ตก (Failed Nutrient)")
+if "เขตสุขภาพ" in f.columns:
+    st.header("4️⃣ วิเคราะห์ตามเขตสุขภาพ (Health Zone)")
+    st.caption("เขตสุขภาพ 1-13 ตามการแบ่งของกระทรวงสาธารณสุข (กทม. = เขต 13)")
+
+    col_z1, col_z2 = st.columns(2)
+
+    with col_z1:
+        st.subheader("จำนวนตามเขตสุขภาพ × Criteria")
+        zone_pv = f.groupby(["เขตสุขภาพ", "Criteria"]).size().unstack(fill_value=0)
+        for c in ["3.1", "3.2", "3.3", "OOS"]:
+            if c not in zone_pv.columns:
+                zone_pv[c] = 0
+        zone_pv = zone_pv[["3.1", "3.2", "3.3", "OOS"]]
+        zone_pv = zone_pv.sort_index()
+        zone_labels = [f"เขต {z}" for z in zone_pv.index]
+
+        fig = go.Figure()
+        for c in ["3.1", "3.2", "3.3", "OOS"]:
+            fig.add_trace(go.Bar(
+                name=LABEL_TH[c], x=zone_labels, y=zone_pv[c],
+                marker_color=COLORS[c],
+            ))
+        fig.update_layout(
+            barmode="stack", height=430,
+            margin=dict(t=20, b=20, l=20, r=20),
+            yaxis_title="จำนวน", xaxis_title="",
+            legend=dict(orientation="h", y=-0.15),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col_z2:
+        st.subheader("Pass Rate (%) แต่ละเขตสุขภาพ")
+        zone_stats = f.groupby("เขตสุขภาพ").agg(
+            Total=("ลำดับ", "count"),
+            Passed=("Passed", "sum"),
+            OOS=("OutOfScope", "sum"),
+        ).reset_index()
+        zone_stats["In_Scope"] = zone_stats["Total"] - zone_stats["OOS"]
+        zone_stats["Pass_Rate"] = (zone_stats["Passed"] / zone_stats["In_Scope"].replace(0, 1) * 100).round(1)
+        zone_stats["Zone_Label"] = zone_stats["เขตสุขภาพ"].apply(lambda z: f"เขต {z}")
+        zone_stats = zone_stats.sort_values("Pass_Rate", ascending=True)
+
+        fig = px.bar(
+            zone_stats, x="Pass_Rate", y="Zone_Label", orientation="h",
+            text="Pass_Rate", color="Pass_Rate", color_continuous_scale="RdYlGn",
+            hover_data=["Total", "Passed", "In_Scope"],
+        )
+        fig.update_layout(
+            height=430, margin=dict(t=20, b=20, l=20, r=20),
+            xaxis_title="% ผ่าน HC (จากในขอบเขต)", yaxis_title="",
+            coloraxis_showscale=False,
+        )
+        fig.update_traces(texttemplate="%{text}%", textposition="outside")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Heatmap: เขตสุขภาพ × HC group
+    st.subheader("Heatmap: เขตสุขภาพ × กลุ่ม HC (จำนวนผลิตภัณฑ์)")
+    zone_heat = f.groupby(["เขตสุขภาพ", "HC_Group_TH"]).size().unstack(fill_value=0)
+    if not zone_heat.empty:
+        zone_heat.index = [f"เขต {z}" for z in zone_heat.index]
+        fig = px.imshow(
+            zone_heat.values, x=zone_heat.columns, y=zone_heat.index,
+            color_continuous_scale="Blues", aspect="auto", text_auto=True,
+        )
+        fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=20))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Zone detail table
+    st.subheader("ตารางสรุปเขตสุขภาพ")
+    zd = f.groupby("เขตสุขภาพ").agg(
+        Total=("ลำดับ", "count"),
+        Passed=("Passed", "sum"),
+        Failed=("Failed", "sum"),
+        Insufficient=("Insufficient", "sum"),
+        OOS=("OutOfScope", "sum"),
+    ).reset_index()
+    zd["In_Scope"] = zd["Total"] - zd["OOS"]
+    zd["Pass_Rate (%)"] = (zd["Passed"] / zd["In_Scope"].replace(0, 1) * 100).round(1)
+    zd = zd.rename(columns={
+        "เขตสุขภาพ": "เขต",
+        "Total": "รวม",
+        "Passed": "ผ่าน 3.1",
+        "Failed": "ไม่ผ่าน 3.2",
+        "Insufficient": "ข้อมูลไม่พอ 3.3",
+        "OOS": "OOS",
+        "In_Scope": "ในขอบเขต",
+    })
+    st.dataframe(zd, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 5: FAILED NUTRIENT DEEP-DIVE
+# ════════════════════════════════════════════════════════════════════
+st.header("5️⃣ วิเคราะห์สารอาหารที่ทำให้ตก (Failed Nutrient)")
 
 # Filter fail_df by same selection (using ลำดับ)
 selected_ids = set(f[f["Criteria"] == "3.2"]["ลำดับ"].tolist())
@@ -376,12 +484,12 @@ st.divider()
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: PRODUCT DETAIL TABLE
 # ════════════════════════════════════════════════════════════════════
-st.header("5️⃣ ตารางรายละเอียดผลิตภัณฑ์")
+st.header("6️⃣ ตารางรายละเอียดผลิตภัณฑ์")
 
 search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด", placeholder="พิมพ์คำค้นหา...")
 
 cols_show = [
-    "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค",
+    "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค", "เขตสุขภาพ",
     "HC_Group_TH", "HC_Subgroup_TH", "Criteria",
     "พลังงาน/100", "น้ำตาล/100", "โซเดียม/100", "ไขมัน/100", "ไขมันอิ่มตัว/100",
     "Failed_Nutrients", "Missing_Nutrients",
