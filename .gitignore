@@ -18,6 +18,17 @@ export_passed_3_1.py
 sample_round*.py
 keyword_map.csv
 hc_criteria.json
+anonymize_data.py
+add_keywords.py
+cleanup_keywords.py
+build_hc_criteria_excel.py
+build_mapping_review.py
+
+# ─── เอกสารต้นฉบับ HC (PDF) — ไม่ deploy ──────────────────────
+category_HC.pdf
+type_nutrition.pdf
+typefood17.pdf
+PowerBI_Setup_Guide.md
 
 # ─── Python ────────────────────────────────────────────────────
 __pycache__/
