@@ -1,0 +1,44 @@
+# ─── ข้อมูลส่วนตัว / Full data — ห้าม push ─────────────────────
+GDA 2026.xlsx
+HC_Dashboard_Data.xlsx
+evaluation_result.xlsx
+review_passed_3_1.xlsx
+mapping_review.xlsx
+Mapping_Review.xlsx
+HC_Criteria_Review.xlsx
+audit_flags.xlsx
+
+# ─── Pipeline scripts (ไม่ใช้ deploy) ──────────────────────────
+evaluate_hc.py
+apply_user_decisions_v*.py
+audit_mapping.py
+final_audit.py
+export_dashboard_data.py
+export_passed_3_1.py
+sample_round*.py
+keyword_map.csv
+hc_criteria.json
+
+# ─── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env
+
+# ─── Streamlit ─────────────────────────────────────────────────
+.streamlit/secrets.toml
+
+# ─── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ─── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
