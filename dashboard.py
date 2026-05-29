@@ -191,17 +191,16 @@ def section(num, title, subtitle=""):
 # ── Shared Plotly template ──────────────────────────────────────────
 pio.templates["hc"] = go.layout.Template(
     layout=dict(
-        font=dict(family=FONT_FAMILY, color=INK, size=15),
+        font=dict(family=FONT_FAMILY, color=INK, size=14),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         colorway=[BRAND, "#E5484D", "#F2B705", "#3B82C4", "#9AA8B2", "#7C5CBF"],
-        margin=dict(t=24, b=20, l=20, r=20),
-        xaxis=dict(gridcolor="#E2EAE6", zerolinecolor="#D5DEDA",
-                   tickfont=dict(color=INK, size=14), title=dict(font=dict(color=INK, size=14))),
-        yaxis=dict(gridcolor="#E2EAE6", zerolinecolor="#D5DEDA",
-                   tickfont=dict(color=INK, size=14), title=dict(font=dict(color=INK, size=14))),
+        xaxis=dict(gridcolor="#E2EAE6", zerolinecolor="#D5DEDA", automargin=True,
+                   tickfont=dict(color=INK, size=13), title=dict(font=dict(color=INK, size=13))),
+        yaxis=dict(gridcolor="#E2EAE6", zerolinecolor="#D5DEDA", automargin=True,
+                   tickfont=dict(color=INK, size=13), title=dict(font=dict(color=INK, size=13))),
         legend=dict(font=dict(size=13, color=INK)),
-        title=dict(font=dict(size=16, color=INK)),
+        title=dict(font=dict(size=15, color=INK)),
     )
 )
 pio.templates.default = "hc"
@@ -209,27 +208,29 @@ pio.templates.default = "hc"
 
 def show(fig, height=None):
     """Apply consistent template + render. theme=None → use our 'hc' template
-    instead of Streamlit's default gray plotly theme."""
-    fig.update_layout(template="hc", font=dict(family=FONT_FAMILY, color=INK, size=15))
+    instead of Streamlit's default gray plotly theme.
+    automargin=True lets axes expand to fit long Thai tick labels."""
+    fig.update_layout(template="hc", font=dict(family=FONT_FAMILY, color=INK, size=14))
+    fig.update_xaxes(automargin=True)
+    fig.update_yaxes(automargin=True)
     if height:
         fig.update_layout(height=height)
     # crisp bar labels: dark outside (on white), white inside (on colored bars)
     fig.update_traces(
         selector=dict(type="bar"),
-        outsidetextfont=dict(family=FONT_FAMILY, color=INK, size=14),
-        insidetextfont=dict(family=FONT_FAMILY, color="#FFFFFF", size=14),
-        cliponaxis=False,
+        outsidetextfont=dict(family=FONT_FAMILY, color=INK, size=13),
+        insidetextfont=dict(family=FONT_FAMILY, color="#FFFFFF", size=13),
     )
     # pie / donut labels
     fig.update_traces(
         selector=dict(type="pie"),
-        textfont=dict(family=FONT_FAMILY, size=14),
-        insidetextfont=dict(family=FONT_FAMILY, color="#FFFFFF", size=14),
+        textfont=dict(family=FONT_FAMILY, size=13),
+        insidetextfont=dict(family=FONT_FAMILY, color="#FFFFFF", size=13),
     )
-    # heatmap cell numbers: dark INK text (scales are capped light so it's always readable)
+    # heatmap cell numbers: dark INK text (scales capped light → always readable)
     fig.update_traces(
         selector=dict(type="heatmap"),
-        textfont=dict(family=FONT_FAMILY, size=13, color=INK),
+        textfont=dict(family=FONT_FAMILY, size=12, color=INK),
     )
     st.plotly_chart(fig, use_container_width=True, theme=None,
                     config={"displayModeBar": False})
@@ -377,15 +378,21 @@ with col_a:
     fig = go.Figure(go.Pie(
         labels=[LABEL_TH[c] for c in crit_counts.index],
         values=crit_counts.values,
-        hole=0.55,
-        marker=dict(colors=[COLORS[c] for c in crit_counts.index]),
-        textinfo="label+percent",
-        textfont_size=12,
+        hole=0.58,
+        marker=dict(colors=[COLORS[c] for c in crit_counts.index],
+                    line=dict(color="#FFFFFF", width=2)),
+        texttemplate="%{percent:.1%}",      # percent inside slices (no outside overflow)
+        textposition="inside",
+        insidetextorientation="horizontal",
+        sort=False,
+        hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>",
     ))
     fig.update_layout(
-        showlegend=False, height=400,
-        margin=dict(t=20, b=20, l=20, r=20),
-        annotations=[dict(text=f"<b>{total:,}</b><br>รายการ", x=0.5, y=0.5, font_size=16, showarrow=False)],
+        showlegend=True, height=400,
+        legend=dict(orientation="h", yanchor="top", y=-0.02, xanchor="center", x=0.5),
+        margin=dict(t=10, b=10, l=10, r=10),
+        annotations=[dict(text=f"<b>{total:,}</b><br>รายการ", x=0.5, y=0.5,
+                          font=dict(size=18, color=INK), showarrow=False)],
     )
     show(fig)
 
