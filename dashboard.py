@@ -6,6 +6,7 @@ HC Dashboard — Streamlit Single-Page App
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import streamlit as st
 from pathlib import Path
 
@@ -19,12 +20,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Traffic light colors (consistent across all charts)
+# ── Palette ──────────────────────────────────────────────────────────
 COLORS = {
-    "3.1": "#4CAF50",   # green - ผ่าน
-    "3.2": "#F44336",   # red - ไม่ผ่าน
-    "3.3": "#FFC107",   # yellow - ข้อมูลไม่พอ
-    "OOS": "#9E9E9E",   # gray - นอกขอบเขต
+    "3.1": "#1F8A4C",   # green  - ผ่าน
+    "3.2": "#E5484D",   # red    - ไม่ผ่าน
+    "3.3": "#F2B705",   # amber  - ข้อมูลไม่พอ
+    "OOS": "#9AA8B2",   # gray   - นอกขอบเขต
 }
 LABEL_TH = {
     "3.1": "3.1 ผ่าน HC",
@@ -32,8 +33,166 @@ LABEL_TH = {
     "3.3": "3.3 ข้อมูลไม่พอ",
     "OOS": "นอกขอบเขต (OOS)",
 }
+INK = "#1A2B27"        # primary text
+MUTED = "#5C7268"      # muted text
+BRAND = "#1F8A4C"      # brand green
+BRAND_DARK = "#15663A"
+FONT_FAMILY = "'IBM Plex Sans Thai', 'Segoe UI', sans-serif"
 
 DATA_FILE = Path(__file__).parent / "HC_Dashboard_Data_Public.xlsx"
+
+
+# ════════════════════════════════════════════════════════════════════
+# STYLING
+# ════════════════════════════════════════════════════════════════════
+def inject_css():
+    st.markdown(
+        f"""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap');
+
+        /* apply Thai font broadly to text widgets (avoid icon fonts) */
+        .stApp, .hero, .hero *, .kpi, .kpi *, .sec, .sec *, .insight,
+        [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+        [data-testid="stMetric"], [data-testid="stMetric"] *,
+        .stMultiSelect, .stMultiSelect *, .stSelectbox, .stSelectbox *,
+        .stTextInput, .stTextInput *, .stButton, .stDownloadButton,
+        h1, h2, h3, h4, p {{
+            font-family: {FONT_FAMILY} !important;
+        }}
+        .stApp {{ background: #F6F9F7; }}
+
+        /* hide default chrome */
+        #MainMenu, footer, header[data-testid="stHeader"] {{ visibility: hidden; height: 0; }}
+        .block-container {{ padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px; }}
+
+        /* ── Hero header ── */
+        .hero {{
+            background: linear-gradient(120deg, {BRAND} 0%, {BRAND_DARK} 100%);
+            border-radius: 18px;
+            padding: 26px 32px;
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(31,138,76,0.25);
+            margin-bottom: 22px;
+        }}
+        .hero h1 {{
+            font-size: 1.85rem; font-weight: 700; margin: 0 0 6px 0; color: #fff;
+            letter-spacing: -0.5px;
+        }}
+        .hero p {{ font-size: 0.98rem; margin: 0; color: rgba(255,255,255,0.88); }}
+        .hero .badge {{
+            display: inline-block; background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.35);
+            padding: 3px 12px; border-radius: 999px; font-size: 0.8rem;
+            margin-top: 12px; font-weight: 500;
+        }}
+
+        /* ── KPI cards ── */
+        .kpi-row {{ display: flex; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }}
+        .kpi {{
+            flex: 1; min-width: 150px; background: #fff; border-radius: 14px;
+            padding: 18px 20px; border: 1px solid #E6EDE9;
+            border-top: 4px solid var(--accent);
+            box-shadow: 0 2px 10px rgba(26,43,39,0.04);
+            transition: transform .15s ease, box-shadow .15s ease;
+        }}
+        .kpi:hover {{ transform: translateY(-3px); box-shadow: 0 8px 20px rgba(26,43,39,0.10); }}
+        .kpi .label {{ font-size: 0.82rem; color: {MUTED}; font-weight: 500; margin-bottom: 6px; }}
+        .kpi .value {{ font-size: 2.0rem; font-weight: 700; color: {INK}; line-height: 1.1; }}
+        .kpi .pct {{ font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-top: 2px; }}
+
+        /* ── Section header ── */
+        .sec {{
+            display: flex; align-items: center; gap: 12px;
+            margin: 8px 0 6px 0;
+        }}
+        .sec .num {{
+            background: {BRAND}; color: #fff; width: 32px; height: 32px;
+            border-radius: 9px; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1rem; flex-shrink: 0;
+        }}
+        .sec .title {{ font-size: 1.3rem; font-weight: 700; color: {INK}; }}
+        .sec-sub {{ color: {MUTED}; font-size: 0.9rem; margin: 0 0 6px 44px; }}
+
+        /* insight banner */
+        .insight {{
+            background: #EAF6EF; border-left: 4px solid {BRAND};
+            border-radius: 10px; padding: 12px 18px; color: {BRAND_DARK};
+            font-size: 0.92rem; margin: 6px 0 14px 0;
+        }}
+
+        /* subheaders inside sections */
+        h3, .stSubheader {{ color: {INK} !important; font-weight: 600 !important; }}
+
+        /* sidebar */
+        section[data-testid="stSidebar"] {{ background: #FFFFFF; border-right: 1px solid #E6EDE9; }}
+        section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"] {{
+            background: {BRAND} !important;
+        }}
+
+        /* dataframe rounding */
+        [data-testid="stDataFrame"] {{ border-radius: 12px; overflow: hidden; border: 1px solid #E6EDE9; }}
+
+        /* divider tighten */
+        hr {{ margin: 1.2rem 0; border-color: #E6EDE9; }}
+
+        /* download button */
+        .stDownloadButton button {{
+            background: {BRAND}; color: #fff; border: none; border-radius: 9px;
+            font-weight: 600; padding: 8px 20px;
+        }}
+        .stDownloadButton button:hover {{ background: {BRAND_DARK}; color: #fff; }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def kpi_cards(items):
+    """items: list of (label, value, pct_text, accent_color)"""
+    cards = "".join(
+        f"""<div class="kpi" style="--accent:{color}">
+              <div class="label">{label}</div>
+              <div class="value">{value}</div>
+              <div class="pct">{pct}</div>
+            </div>"""
+        for label, value, pct, color in items
+    )
+    st.markdown(f'<div class="kpi-row">{cards}</div>', unsafe_allow_html=True)
+
+
+def section(num, title, subtitle=""):
+    st.markdown(
+        f'<div class="sec"><div class="num">{num}</div>'
+        f'<div class="title">{title}</div></div>'
+        + (f'<p class="sec-sub">{subtitle}</p>' if subtitle else ""),
+        unsafe_allow_html=True,
+    )
+
+
+# ── Shared Plotly template ──────────────────────────────────────────
+pio.templates["hc"] = go.layout.Template(
+    layout=dict(
+        font=dict(family=FONT_FAMILY, color=INK, size=13),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        colorway=[BRAND, "#E5484D", "#F2B705", "#3B82C4", "#9AA8B2", "#7C5CBF"],
+        margin=dict(t=24, b=20, l=20, r=20),
+        xaxis=dict(gridcolor="#ECF1EE", zerolinecolor="#E6EDE9"),
+        yaxis=dict(gridcolor="#ECF1EE", zerolinecolor="#E6EDE9"),
+        legend=dict(font=dict(size=12)),
+        title=dict(font=dict(size=15, color=INK)),
+    )
+)
+pio.templates.default = "hc"
+
+
+def show(fig, height=None):
+    """Apply consistent template + render."""
+    fig.update_layout(template="hc")
+    if height:
+        fig.update_layout(height=height)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -52,12 +211,19 @@ except FileNotFoundError:
     st.error(f"ไม่พบไฟล์ข้อมูล: {DATA_FILE.name}")
     st.stop()
 
+inject_css()
+
 
 # ════════════════════════════════════════════════════════════════════
 # SIDEBAR FILTERS
 # ════════════════════════════════════════════════════════════════════
-st.sidebar.title("🔍 ตัวกรอง (Filters)")
-st.sidebar.caption("กรองข้อมูลก่อนดูทุก section ด้านขวา")
+st.sidebar.markdown(
+    f"<div style='font-size:1.15rem;font-weight:700;color:{INK};margin-bottom:2px'>"
+    f"🔍 ตัวกรอง</div>"
+    f"<div style='font-size:0.82rem;color:{MUTED};margin-bottom:10px'>"
+    f"กรองข้อมูลก่อนดูทุก section ด้านขวา</div>",
+    unsafe_allow_html=True,
+)
 
 # Region filter
 regions = sorted(df["ภูมิภาค"].dropna().unique().tolist())
@@ -117,15 +283,8 @@ st.sidebar.markdown(
 
 
 # ════════════════════════════════════════════════════════════════════
-# HEADER + KPI CARDS
+# HERO HEADER + KPI CARDS
 # ════════════════════════════════════════════════════════════════════
-st.title("🥗 Healthier Choice Evaluation — GDA 2026")
-st.markdown(
-    "ภาพรวมการประเมินผลิตภัณฑ์ตามเกณฑ์ **ทางเลือกสุขภาพ (HC)** ของไทย "
-    "— จำแนกตามเกณฑ์ 3.1 (ผ่าน) / 3.2 (ไม่ผ่าน) / 3.3 (ข้อมูลไม่พอ) และ OOS (นอกขอบเขต)"
-)
-
-# KPI cards
 total = len(f)
 n31 = int((f["Criteria"] == "3.1").sum())
 n32 = int((f["Criteria"] == "3.2").sum())
@@ -133,26 +292,42 @@ n33 = int((f["Criteria"] == "3.3").sum())
 noos = int((f["Criteria"] == "OOS").sum())
 in_scope = total - noos
 
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("ผลิตภัณฑ์ทั้งหมด", f"{total:,}")
-c2.metric("✅ ผ่าน HC (3.1)", f"{n31:,}", f"{n31/total*100:.1f}%" if total else "")
-c3.metric("❌ ไม่ผ่าน (3.2)", f"{n32:,}", f"{n32/total*100:.1f}%" if total else "")
-c4.metric("⚠️ ข้อมูลไม่พอ (3.3)", f"{n33:,}", f"{n33/total*100:.1f}%" if total else "")
-c5.metric("➖ นอกขอบเขต", f"{noos:,}", f"{noos/total*100:.1f}%" if total else "")
+st.markdown(
+    f"""
+    <div class="hero">
+      <h1>🥗 Healthier Choice Evaluation — GDA 2026</h1>
+      <p>ภาพรวมการประเมินผลิตภัณฑ์ตามเกณฑ์ <b>ทางเลือกสุขภาพ (HC)</b> ของไทย
+      — จำแนกเป็น 3.1 ผ่าน / 3.2 ไม่ผ่าน / 3.3 ข้อมูลไม่พอ / OOS นอกขอบเขต</p>
+      <span class="badge">📦 {total:,} ผลิตภัณฑ์ที่เลือก จากทั้งหมด {len(df):,} รายการ</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+pct = lambda n: f"{n/total*100:.1f}% ของทั้งหมด" if total else "—"
+kpi_cards([
+    ("ผลิตภัณฑ์ทั้งหมด", f"{total:,}", "100%", BRAND),
+    ("✅ ผ่าน HC (3.1)", f"{n31:,}", pct(n31), COLORS["3.1"]),
+    ("❌ ไม่ผ่าน (3.2)", f"{n32:,}", pct(n32), COLORS["3.2"]),
+    ("⚠️ ข้อมูลไม่พอ (3.3)", f"{n33:,}", pct(n33), COLORS["3.3"]),
+    ("➖ นอกขอบเขต", f"{noos:,}", pct(noos), COLORS["OOS"]),
+])
 
 if in_scope > 0:
-    st.info(
-        f"📊 **อยู่ในขอบเขต HC**: {in_scope:,} รายการ — "
-        f"ผ่าน {n31/in_scope*100:.1f}% / ไม่ผ่าน {n32/in_scope*100:.1f}% / ข้อมูลไม่พอ {n33/in_scope*100:.1f}%"
+    st.markdown(
+        f'<div class="insight">📊 <b>อยู่ในขอบเขต HC</b> {in_scope:,} รายการ — '
+        f'ผ่าน <b>{n31/in_scope*100:.1f}%</b> · ไม่ผ่าน <b>{n32/in_scope*100:.1f}%</b> · '
+        f'ข้อมูลไม่พอ <b>{n33/in_scope*100:.1f}%</b></div>',
+        unsafe_allow_html=True,
     )
 
-st.divider()
+st.write("")
 
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 1: OVERVIEW
 # ════════════════════════════════════════════════════════════════════
-st.header("1️⃣ ภาพรวม (Overview)")
+section("1", "ภาพรวม", "Overview — สัดส่วนผลการประเมินและจำนวนตามกลุ่ม HC")
 
 col_a, col_b = st.columns([1, 2])
 
@@ -172,14 +347,14 @@ with col_a:
         margin=dict(t=20, b=20, l=20, r=20),
         annotations=[dict(text=f"<b>{total:,}</b><br>รายการ", x=0.5, y=0.5, font_size=16, showarrow=False)],
     )
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
 with col_b:
     st.subheader("จำนวนผลิตภัณฑ์ตามกลุ่ม HC")
     grp = f.groupby("HC_Group_TH").size().reset_index(name="จำนวน").sort_values("จำนวน", ascending=True)
     fig = px.bar(
         grp, x="จำนวน", y="HC_Group_TH", orientation="h",
-        text="จำนวน", color="จำนวน", color_continuous_scale="Blues",
+        text="จำนวน", color="จำนวน", color_continuous_scale="Greens",
     )
     fig.update_layout(
         height=400, margin=dict(t=20, b=20, l=20, r=20),
@@ -187,15 +362,15 @@ with col_b:
         coloraxis_showscale=False,
     )
     fig.update_traces(textposition="outside")
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
-st.divider()
+st.write("")
 
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 2: HC GROUP ANALYSIS
 # ════════════════════════════════════════════════════════════════════
-st.header("2️⃣ วิเคราะห์ตามกลุ่ม HC")
+section("2", "วิเคราะห์ตามกลุ่ม HC", "HC Group Analysis — เปรียบเทียบ 15 กลุ่มอาหาร")
 
 # Stacked bar: group × criteria
 pivot = f.groupby(["HC_Group_TH", "Criteria"]).size().unstack(fill_value=0)
@@ -219,7 +394,7 @@ fig.update_layout(
     xaxis_title="จำนวน", yaxis_title="",
     legend=dict(orientation="h", y=-0.1),
 )
-st.plotly_chart(fig, use_container_width=True)
+show(fig)
 
 # Detail table
 st.subheader("ตารางรายละเอียดกลุ่ม HC")
@@ -233,13 +408,13 @@ det = det.reset_index().rename(columns={
 det = det.sort_values("รวม", ascending=False)
 st.dataframe(det, use_container_width=True, hide_index=True)
 
-st.divider()
+st.write("")
 
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 3: GEOGRAPHIC VIEW
 # ════════════════════════════════════════════════════════════════════
-st.header("3️⃣ มุมมองภูมิภาค (Geographic)")
+section("3", "มุมมองภูมิภาค", "Geographic — แยกตามภูมิภาคและจังหวัด")
 
 col_g1, col_g2 = st.columns(2)
 
@@ -263,7 +438,7 @@ with col_g1:
         yaxis_title="จำนวน", xaxis_title="",
         legend=dict(orientation="h", y=-0.15),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
 with col_g2:
     st.subheader("Top 10 จังหวัด — Pass Rate (%)")
@@ -288,7 +463,7 @@ with col_g2:
             coloraxis_showscale=False,
         )
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
     else:
         st.info("จังหวัดที่มี ≥10 ผลิตภัณฑ์ในตัวกรองนี้ไม่เพียงพอ")
 
@@ -298,19 +473,19 @@ heat = f.groupby(["ภูมิภาค", "HC_Group_TH"]).size().unstack(fill_v
 if not heat.empty:
     fig = px.imshow(
         heat.values, x=heat.columns, y=heat.index,
-        color_continuous_scale="Blues", aspect="auto", text_auto=True,
+        color_continuous_scale="Greens", aspect="auto", text_auto=True,
     )
     fig.update_layout(height=350, margin=dict(t=20, b=20, l=20, r=20))
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
-st.divider()
+st.write("")
 
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 4: HEALTH ZONE ANALYSIS (เขตสุขภาพ)
 # ════════════════════════════════════════════════════════════════════
 if "เขตสุขภาพ" in f.columns:
-    st.header("4️⃣ วิเคราะห์ตามเขตสุขภาพ (Health Zone)")
+    section("4", "วิเคราะห์ตามเขตสุขภาพ", "Health Zone — เขตสุขภาพ 1-13 ของกระทรวงสาธารณสุข")
     st.caption("เขตสุขภาพ 1-13 ตามการแบ่งของกระทรวงสาธารณสุข (กทม. = เขต 13)")
 
     col_z1, col_z2 = st.columns(2)
@@ -337,7 +512,7 @@ if "เขตสุขภาพ" in f.columns:
             yaxis_title="จำนวน", xaxis_title="",
             legend=dict(orientation="h", y=-0.15),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
 
     with col_z2:
         st.subheader("Pass Rate (%) แต่ละเขตสุขภาพ")
@@ -362,7 +537,7 @@ if "เขตสุขภาพ" in f.columns:
             coloraxis_showscale=False,
         )
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
 
     # Heatmap: เขตสุขภาพ × HC group
     st.subheader("Heatmap: เขตสุขภาพ × กลุ่ม HC (จำนวนผลิตภัณฑ์)")
@@ -371,10 +546,10 @@ if "เขตสุขภาพ" in f.columns:
         zone_heat.index = [f"เขต {z}" for z in zone_heat.index]
         fig = px.imshow(
             zone_heat.values, x=zone_heat.columns, y=zone_heat.index,
-            color_continuous_scale="Blues", aspect="auto", text_auto=True,
+            color_continuous_scale="Greens", aspect="auto", text_auto=True,
         )
         fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=20))
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
 
     # Zone detail table
     st.subheader("ตารางสรุปเขตสุขภาพ")
@@ -398,13 +573,13 @@ if "เขตสุขภาพ" in f.columns:
     })
     st.dataframe(zd, use_container_width=True, hide_index=True)
 
-    st.divider()
+    st.write("")
 
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: FAILED NUTRIENT DEEP-DIVE
 # ════════════════════════════════════════════════════════════════════
-st.header("5️⃣ วิเคราะห์สารอาหารที่ทำให้ตก (Failed Nutrient)")
+section("5", "สารอาหารที่ทำให้ตก", "Failed Nutrient Deep-dive — น้ำตาล/โซเดียม/ไขมัน ฯลฯ")
 
 # Filter fail_df by same selection (using ลำดับ)
 selected_ids = set(f[f["Criteria"] == "3.2"]["ลำดับ"].tolist())
@@ -428,7 +603,7 @@ with col_f1:
             coloraxis_showscale=False,
         )
         fig.update_traces(textposition="outside")
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
     else:
         st.info("ไม่มีผลิตภัณฑ์ที่ตก (3.2) ในตัวกรองนี้")
 
@@ -455,7 +630,7 @@ with col_f2:
             height=500, showlegend=False,
             margin=dict(t=20, b=20, l=20, r=20),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
 
 # Heatmap: group × failed nutrient main category
 if len(ff) > 0:
@@ -476,15 +651,15 @@ if len(ff) > 0:
         color_continuous_scale="Reds", aspect="auto", text_auto=True,
     )
     fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=20))
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
-st.divider()
+st.write("")
 
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: PRODUCT DETAIL TABLE
 # ════════════════════════════════════════════════════════════════════
-st.header("6️⃣ ตารางรายละเอียดผลิตภัณฑ์")
+section("6", "ตารางรายละเอียดผลิตภัณฑ์", "Product Detail — ค้นหาและดาวน์โหลด")
 
 search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด", placeholder="พิมพ์คำค้นหา...")
 
@@ -516,7 +691,7 @@ st.download_button(
     file_name=f"hc_filtered_{len(view)}_items.csv", mime="text/csv",
 )
 
-st.divider()
+st.write("")
 st.caption(
     "© Healthier Choice Evaluation Pipeline — Powered by Streamlit + Plotly  \n"
     "Source code: github.com/<your-username>/hc-dashboard"

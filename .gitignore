@@ -42,6 +42,10 @@ env/
 
 # ─── Streamlit ─────────────────────────────────────────────────
 .streamlit/secrets.toml
+# NOTE: .streamlit/config.toml IS committed (needed for Cloud theme)
+
+# ─── Local preview helper (ไม่ deploy) ────────────────────────
+.claude/
 
 # ─── IDE ───────────────────────────────────────────────────────
 .vscode/
