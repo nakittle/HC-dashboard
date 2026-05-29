@@ -37,6 +37,10 @@ INK = "#16231F"        # primary text (near-black)
 MUTED = "#3A4A44"      # secondary text (dark slate — clearly readable)
 BRAND = "#1F8A4C"      # brand green
 BRAND_DARK = "#15663A"
+
+# light-capped heatmap scales → dark INK text stays readable on every cell
+HEAT_GREEN = [[0.0, "#F2F9F5"], [0.45, "#A7DBB6"], [1.0, "#5FB37B"]]
+HEAT_RED = [[0.0, "#FDF3F3"], [0.45, "#F3B4B6"], [1.0, "#E08A8E"]]
 FONT_FAMILY = "'IBM Plex Sans Thai', 'Segoe UI', sans-serif"
 
 DATA_FILE = Path(__file__).parent / "HC_Dashboard_Data_Public.xlsx"
@@ -187,26 +191,48 @@ def section(num, title, subtitle=""):
 # ── Shared Plotly template ──────────────────────────────────────────
 pio.templates["hc"] = go.layout.Template(
     layout=dict(
-        font=dict(family=FONT_FAMILY, color=INK, size=13),
+        font=dict(family=FONT_FAMILY, color=INK, size=15),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         colorway=[BRAND, "#E5484D", "#F2B705", "#3B82C4", "#9AA8B2", "#7C5CBF"],
         margin=dict(t=24, b=20, l=20, r=20),
-        xaxis=dict(gridcolor="#ECF1EE", zerolinecolor="#E6EDE9"),
-        yaxis=dict(gridcolor="#ECF1EE", zerolinecolor="#E6EDE9"),
-        legend=dict(font=dict(size=12)),
-        title=dict(font=dict(size=15, color=INK)),
+        xaxis=dict(gridcolor="#E2EAE6", zerolinecolor="#D5DEDA",
+                   tickfont=dict(color=INK, size=14), title=dict(font=dict(color=INK, size=14))),
+        yaxis=dict(gridcolor="#E2EAE6", zerolinecolor="#D5DEDA",
+                   tickfont=dict(color=INK, size=14), title=dict(font=dict(color=INK, size=14))),
+        legend=dict(font=dict(size=13, color=INK)),
+        title=dict(font=dict(size=16, color=INK)),
     )
 )
 pio.templates.default = "hc"
 
 
 def show(fig, height=None):
-    """Apply consistent template + render."""
-    fig.update_layout(template="hc")
+    """Apply consistent template + render. theme=None → use our 'hc' template
+    instead of Streamlit's default gray plotly theme."""
+    fig.update_layout(template="hc", font=dict(family=FONT_FAMILY, color=INK, size=15))
     if height:
         fig.update_layout(height=height)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    # crisp bar labels: dark outside (on white), white inside (on colored bars)
+    fig.update_traces(
+        selector=dict(type="bar"),
+        outsidetextfont=dict(family=FONT_FAMILY, color=INK, size=14),
+        insidetextfont=dict(family=FONT_FAMILY, color="#FFFFFF", size=14),
+        cliponaxis=False,
+    )
+    # pie / donut labels
+    fig.update_traces(
+        selector=dict(type="pie"),
+        textfont=dict(family=FONT_FAMILY, size=14),
+        insidetextfont=dict(family=FONT_FAMILY, color="#FFFFFF", size=14),
+    )
+    # heatmap cell numbers: dark INK text (scales are capped light so it's always readable)
+    fig.update_traces(
+        selector=dict(type="heatmap"),
+        textfont=dict(family=FONT_FAMILY, size=13, color=INK),
+    )
+    st.plotly_chart(fig, use_container_width=True, theme=None,
+                    config={"displayModeBar": False})
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -487,7 +513,7 @@ heat = f.groupby(["ภูมิภาค", "HC_Group_TH"]).size().unstack(fill_v
 if not heat.empty:
     fig = px.imshow(
         heat.values, x=heat.columns, y=heat.index,
-        color_continuous_scale="Greens", aspect="auto", text_auto=True,
+        color_continuous_scale=HEAT_GREEN, aspect="auto", text_auto=True,
     )
     fig.update_layout(height=350, margin=dict(t=20, b=20, l=20, r=20))
     show(fig)
@@ -560,7 +586,7 @@ if "เขตสุขภาพ" in f.columns:
         zone_heat.index = [f"เขต {z}" for z in zone_heat.index]
         fig = px.imshow(
             zone_heat.values, x=zone_heat.columns, y=zone_heat.index,
-            color_continuous_scale="Greens", aspect="auto", text_auto=True,
+            color_continuous_scale=HEAT_GREEN, aspect="auto", text_auto=True,
         )
         fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=20))
         show(fig)
@@ -662,7 +688,7 @@ if len(ff) > 0:
     heat2 = ff2.groupby(["HC_Group_TH", "หมวด"]).size().unstack(fill_value=0)
     fig = px.imshow(
         heat2.values, x=heat2.columns, y=heat2.index,
-        color_continuous_scale="Reds", aspect="auto", text_auto=True,
+        color_continuous_scale=HEAT_RED, aspect="auto", text_auto=True,
     )
     fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=20))
     show(fig)
