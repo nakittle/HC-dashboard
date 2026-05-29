@@ -1,34 +1,33 @@
-# ─── ข้อมูลส่วนตัว / Full data — ห้าม push ─────────────────────
+# ════════════════════════════════════════════════════════════════
+# โครงสร้างโฟลเดอร์ (ไม่ deploy):
+#   data/    — raw data, criteria, keywords, PDF docs
+#   pipeline/ — Python scripts สำหรับประเมินผล + audit
+#   output/  — ผลลัพธ์ (full data, evaluation, reviews)
+#
+# ไฟล์ที่ deploy: dashboard.py, requirements.txt,
+#                HC_Dashboard_Data_Public.xlsx, README.md
+# ════════════════════════════════════════════════════════════════
+
+# ─── Full data folders (ห้าม push) ─────────────────────────────
+data/
+pipeline/
+output/
+
+# ─── Legacy file patterns (เผื่อมีเหลือ) ──────────────────────
 GDA 2026.xlsx
 HC_Dashboard_Data.xlsx
 evaluation_result.xlsx
 review_passed_3_1.xlsx
 mapping_review.xlsx
-Mapping_Review.xlsx
-HC_Criteria_Review.xlsx
 audit_flags.xlsx
-
-# ─── Pipeline scripts (ไม่ใช้ deploy) ──────────────────────────
+keyword_map.csv
+hc_criteria.json
 evaluate_hc.py
-apply_user_decisions_v*.py
+anonymize_data.py
 audit_mapping.py
 final_audit.py
 export_dashboard_data.py
 export_passed_3_1.py
-sample_round*.py
-keyword_map.csv
-hc_criteria.json
-anonymize_data.py
-add_keywords.py
-cleanup_keywords.py
-build_hc_criteria_excel.py
-build_mapping_review.py
-
-# ─── เอกสารต้นฉบับ HC (PDF) — ไม่ deploy ──────────────────────
-category_HC.pdf
-type_nutrition.pdf
-typefood17.pdf
-PowerBI_Setup_Guide.md
 
 # ─── Python ────────────────────────────────────────────────────
 __pycache__/
