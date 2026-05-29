@@ -33,8 +33,8 @@ LABEL_TH = {
     "3.3": "3.3 ข้อมูลไม่พอ",
     "OOS": "นอกขอบเขต (OOS)",
 }
-INK = "#1A2B27"        # primary text
-MUTED = "#5C7268"      # muted text
+INK = "#16231F"        # primary text (near-black)
+MUTED = "#3A4A44"      # secondary text (dark slate — clearly readable)
 BRAND = "#1F8A4C"      # brand green
 BRAND_DARK = "#15663A"
 FONT_FAMILY = "'IBM Plex Sans Thai', 'Segoe UI', sans-serif"
@@ -76,10 +76,11 @@ def inject_css():
             margin-bottom: 22px;
         }}
         .hero h1 {{
-            font-size: 1.85rem; font-weight: 700; margin: 0 0 6px 0; color: #fff;
+            font-size: 1.85rem; font-weight: 700; margin: 0 0 6px 0; color: #fff !important;
             letter-spacing: -0.5px;
         }}
-        .hero p {{ font-size: 0.98rem; margin: 0; color: rgba(255,255,255,0.88); }}
+        .hero p {{ font-size: 0.98rem; margin: 0; color: rgba(255,255,255,0.97) !important; }}
+        .hero .badge {{ color: #fff !important; }}
         .hero .badge {{
             display: inline-block; background: rgba(255,255,255,0.18);
             border: 1px solid rgba(255,255,255,0.35);
@@ -97,9 +98,9 @@ def inject_css():
             transition: transform .15s ease, box-shadow .15s ease;
         }}
         .kpi:hover {{ transform: translateY(-3px); box-shadow: 0 8px 20px rgba(26,43,39,0.10); }}
-        .kpi .label {{ font-size: 0.82rem; color: {MUTED}; font-weight: 500; margin-bottom: 6px; }}
+        .kpi .label {{ font-size: 0.85rem; color: {INK}; font-weight: 600; margin-bottom: 6px; }}
         .kpi .value {{ font-size: 2.0rem; font-weight: 700; color: {INK}; line-height: 1.1; }}
-        .kpi .pct {{ font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-top: 2px; }}
+        .kpi .pct {{ font-size: 0.85rem; font-weight: 600; color: {MUTED}; margin-top: 2px; }}
 
         /* ── Section header ── */
         .sec {{
@@ -121,11 +122,24 @@ def inject_css():
             font-size: 0.92rem; margin: 6px 0 14px 0;
         }}
 
-        /* subheaders inside sections */
-        h3, .stSubheader {{ color: {INK} !important; font-weight: 600 !important; }}
+        /* subheaders + all body text dark */
+        h1, h2, h3, h4, h5, h6 {{ color: {INK} !important; font-weight: 600 !important; }}
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMarkdownContainer"] li,
+        [data-testid="stMarkdownContainer"] span {{ color: {INK}; }}
+
+        /* st.caption — Streamlit renders these very faint; force readable */
+        [data-testid="stCaptionContainer"],
+        [data-testid="stCaptionContainer"] p,
+        small, .stCaption {{ color: {MUTED} !important; }}
+
+        /* dataframe text */
+        [data-testid="stDataFrame"] {{ color: {INK}; }}
 
         /* sidebar */
         section[data-testid="stSidebar"] {{ background: #FFFFFF; border-right: 1px solid #E6EDE9; }}
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{ color: {INK} !important; }}
         section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"] {{
             background: {BRAND} !important;
         }}
