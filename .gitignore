@@ -31,6 +31,7 @@ export_dashboard_data.py
 export_passed_3_1.py
 
 # ─── Private engine artifacts (ห้าม push) ──────────────────────
+progress.md
 tests/
 docs/
 scripts/

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 HC Dashboard — Multi-page Streamlit App (dark theme)
-ประเมิน Healthier Choice (HC) สำหรับผลิตภัณฑ์ GDA 2568 จำนวน 836 รายการ
+ประเมิน Healthier Choice (HC) สำหรับผลิตภัณฑ์ GDA หลายปีข้อมูล —
+เลือกปีได้จากตัวกรอง "📅 ปีข้อมูล (GDA)" ในแถบด้านข้าง (ทุกหน้าคำนวณตามปีที่เลือก)
 """
 import json
 
@@ -17,7 +18,7 @@ from pathlib import Path
 # CONFIG
 # ════════════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="HC Dashboard — GDA 2568",
+    page_title="HC Dashboard — GDA",
     page_icon="🥗",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -322,42 +323,11 @@ def kpi_cards(items):
 # DATA LOADING (cached)
 # ════════════════════════════════════════════════════════════════════
 @st.cache_data(show_spinner="กำลังโหลดข้อมูล...")
-def load_data():
+def load_data(mtime):
+    """mtime = cache key: invalidates the cache when the xlsx is regenerated in place."""
     data = pd.read_excel(DATA_FILE, sheet_name="1_Data")
     fail_detail = pd.read_excel(DATA_FILE, sheet_name="6_Failed_Detail")
     return data, fail_detail
-
-
-@st.cache_data(show_spinner=False)
-def load_criteria_nutrient_map():
-    """From sheet 8: HC_Group_TH → set of nutrients its HC criteria regulate."""
-    try:
-        ref = pd.read_excel(DATA_FILE, sheet_name="8_HC_Criteria_Reference")
-    except Exception:
-        return {}
-    m = {}
-    for _, row in ref.iterrows():
-        grp = str(row.get("HC_Group_TH", "")).strip()
-        raw = row.get("Rules", "")
-        try:
-            rules = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
-        except Exception:
-            rules = {}
-        keys = " ".join(rules.keys()).lower()
-        s = m.setdefault(grp, set())
-        if "sugar" in keys:
-            s.add("sugar")
-        if "sodium" in keys:
-            s.add("sodium")
-        if "saturated_fat" in keys or "satfat" in keys:
-            s.add("satfat")
-        if "energy" in keys:
-            s.add("energy")
-        for k in rules:
-            kl = k.lower()
-            if "fat" in kl and "saturated" not in kl and "satfat" not in kl:
-                s.add("fat")
-    return m
 
 
 def _rules_to_nutrients(rules):
@@ -375,8 +345,9 @@ def _rules_to_nutrients(rules):
 
 
 @st.cache_data(show_spinner=False)
-def load_criteria_nutrient_map_sub():
-    """From sheet 8: unit (Subgroup_TH ถ้ามี ไม่งั้น HC_Group_TH) → set of nutrients."""
+def load_criteria_nutrient_map_sub(mtime):
+    """From sheet 8: unit (Subgroup_TH ถ้ามี ไม่งั้น HC_Group_TH) → set of nutrients.
+    mtime = cache key (invalidates when the xlsx is regenerated in place)."""
     try:
         ref = pd.read_excel(DATA_FILE, sheet_name="8_HC_Criteria_Reference")
     except Exception:
@@ -455,7 +426,15 @@ def filter_dropdown(label, key, options, fmt=None, empty_means_all=False, help_t
     return st.session_state[key]
 
 
+def _reset_year_dependent_filters():
+    # เปลี่ยนปี = ล้างตัวกรองที่ขึ้นกับปี (ตัวเลือกต่างกันในแต่ละปี; ค่าค้างจะตัดค่าที่มี
+    # เฉพาะบางปีออกเงียบ ๆ เช่น ผลิตภัณฑ์นม ที่มีเฉพาะปี 2569)
+    for k in ("f_regions", "f_zones", "f_provs", "f_groups", "f_crits"):
+        st.session_state.pop(k, None)
+
+
 def build_sidebar_filters(df):
+    """Render sidebar filters; return (filtered_df, selected_year, year_total)."""
     st.sidebar.markdown(
         '<div class="brand">'
         '<div class="logo">🥗</div>'
@@ -470,6 +449,12 @@ def build_sidebar_filters(df):
         f"คลิกแต่ละปุ่มเพื่อเลือกค่า (ใช้ร่วมกันทุกหน้า)</div>",
         unsafe_allow_html=True,
     )
+
+    # ── ปีข้อมูล: เลือกได้ทีละปี (ค่าเริ่มต้น = ปีล่าสุด) — กรองก่อนตัวกรองอื่นทั้งหมด ──
+    years = [int(y) for y in sorted(df["ปี"].dropna().unique(), reverse=True)]
+    sel_year = st.sidebar.selectbox("📅 ปีข้อมูล (GDA)", years, index=0, key="f_year",
+                                    on_change=_reset_year_dependent_filters)
+    df = df[df["ปี"] == sel_year]
 
     regions = sorted(df["ภูมิภาค"].dropna().unique().tolist())
     sel_regions = filter_dropdown("🌏 ภูมิภาค", "f_regions", regions)
@@ -503,8 +488,8 @@ def build_sidebar_filters(df):
 
     st.sidebar.divider()
     st.sidebar.metric("รายการที่เลือก", f"{len(f):,} / {len(df):,}")
-    st.sidebar.caption("ทุกหน้าคำนวณจาก subset นี้ · ข้อมูล GDA 2568 (anonymized)")
-    return f
+    st.sidebar.caption(f"ทุกหน้าคำนวณจาก subset นี้ · ข้อมูล GDA {sel_year} (anonymized)")
+    return f, sel_year, len(df)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -527,10 +512,10 @@ def page_overview():
     noos = int((f["Criteria"] == "OOS").sum())
     in_scope = total - noos
 
-    hero("🥗 การประเมินผลิตภัณฑ์ที่ได้รับการส่งเสริมตรวจฉลากโภชนาการ "
-         "ปีงบประมาณ 2568<br>ตามเกณฑ์ Healthier Choice",
-         "สรุปผลการประเมินผลิตภัณฑ์ตามเกณฑ์ทางเลือกสุขภาพ (HC) ของไทย — GDA 2568",
-         f"📦 {total:,} ผลิตภัณฑ์ที่เลือก จากทั้งหมด {len(DATA):,} รายการ")
+    hero(f"🥗 การประเมินผลิตภัณฑ์ที่ได้รับการส่งเสริมตรวจฉลากโภชนาการ "
+         f"ปีงบประมาณ {SELECTED_YEAR}<br>ตามเกณฑ์ Healthier Choice",
+         f"สรุปผลการประเมินผลิตภัณฑ์ตามเกณฑ์ทางเลือกสุขภาพ (HC) ของไทย — GDA {SELECTED_YEAR}",
+         f"📦 {total:,} ผลิตภัณฑ์ที่เลือก จากทั้งหมด {YEAR_TOTAL:,} รายการ")
 
     pct = lambda n: f"{n/total*100:.1f}% ของทั้งหมด" if total else "—"
     kpi_cards([
@@ -869,8 +854,14 @@ def page_nutrients():
             "และเสี่ยงต่อโรคหัวใจและหลอดเลือด"
         )
 
-    selected_ids = set(f[f["Criteria"] == "3.2"]["ลำดับ"].tolist())
-    ff = fail_df[fail_df["ลำดับ"].isin(selected_ids)] if selected_ids else fail_df.iloc[0:0]
+    # join ด้วย key ผสม (ปี, ลำดับ) — ลำดับซ้ำกันข้ามปีได้ ห้ามใช้ ลำดับ เดี่ยวๆ
+    f32 = f[f["Criteria"] == "3.2"]
+    selected_keys = set(zip(f32["ปี"], f32["ลำดับ"]))
+    if selected_keys:
+        fail_keys = pd.Series(list(zip(fail_df["ปี"], fail_df["ลำดับ"])), index=fail_df.index)
+        ff = fail_df[fail_keys.isin(selected_keys)]
+    else:
+        ff = fail_df.iloc[0:0]
 
     col_f1, col_f2 = st.columns([3, 2])
     with col_f1:
@@ -925,7 +916,7 @@ def page_nutrients():
                        "พลังงาน/100": "energy"}
         nutr_th = {"sugar": "น้ำตาล", "sodium": "โซเดียม", "fat": "ไขมัน",
                    "satfat": "ไขมันอิ่มตัว", "energy": "พลังงาน"}
-        nmap = load_criteria_nutrient_map_sub()
+        nmap = load_criteria_nutrient_map_sub(DATA_FILE.stat().st_mtime)
         target = col_to_nutr.get(sel_n)
         th = nutr_th.get(target, sel_n)
         relevant = {u for u, s in nmap.items() if target in s} if (target and nmap) else set()
@@ -1005,7 +996,7 @@ def page_products():
         search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด",
                                placeholder="พิมพ์คำค้นหา...")
         cols_show = [
-            "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค", "เขตสุขภาพ",
+            "ปี", "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค", "เขตสุขภาพ",
             "HC_Group_TH", "HC_Subgroup_TH", "Criteria",
             "พลังงาน/100", "น้ำตาล/100", "โซเดียม/100", "ไขมัน/100", "ไขมันอิ่มตัว/100",
             "Failed_Nutrients", "Missing_Nutrients"]
@@ -1031,12 +1022,12 @@ def page_products():
 inject_css()
 
 try:
-    DATA, FAILDF = load_data()
+    DATA, FAILDF = load_data(DATA_FILE.stat().st_mtime)
 except FileNotFoundError:
     st.error(f"ไม่พบไฟล์ข้อมูล: {DATA_FILE.name}")
     st.stop()
 
-FILTERED = build_sidebar_filters(DATA)
+FILTERED, SELECTED_YEAR, YEAR_TOTAL = build_sidebar_filters(DATA)
 
 nav = st.navigation([
     st.Page(page_overview, title="ภาพรวม", icon=":material/dashboard:", default=True),
