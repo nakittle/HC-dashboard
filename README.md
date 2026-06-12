@@ -1,6 +1,6 @@
-# HC Dashboard — Healthier Choice Evaluation (GDA 2026)
+# HC Dashboard — Healthier Choice Evaluation (GDA 2568)
 
-Streamlit dashboard สรุปผลการประเมินผลิตภัณฑ์ตามเกณฑ์ **ทางเลือกสุขภาพ (Healthier Choice — HC)** ของไทย จากโครงการตรวจ GDA 2026 ฟรี (1,358 ผลิตภัณฑ์)
+Streamlit dashboard สรุปผลการประเมินผลิตภัณฑ์ตามเกณฑ์ **ทางเลือกสุขภาพ (Healthier Choice — HC)** ของไทย จากโครงการตรวจ GDA 2568 ฟรี (836 ผลิตภัณฑ์)
 
 ## 📊 Live Dashboard
 
@@ -8,14 +8,14 @@ Streamlit dashboard สรุปผลการประเมินผลิต
 
 ## 🎯 Overview
 
-ผลิตภัณฑ์ 1,358 รายการ ถูกแบ่งเป็น 4 หมวด:
+ผลิตภัณฑ์ 836 รายการ ถูกแบ่งเป็น 4 หมวด:
 
 | Criteria | ความหมาย | จำนวน | % |
 |---------|---------|------:|--:|
-| **3.1** | ผ่านเกณฑ์ HC | 87 | 6.4% |
-| **3.2** | ไม่ผ่านเกณฑ์ HC | 576 | 42.4% |
-| **3.3** | ข้อมูลโภชนาการไม่พอ | 386 | 28.4% |
-| **OOS** | นอกขอบเขต HC | 309 | 22.8% |
+| **3.1** | ผ่านเกณฑ์ HC | 27 | 3.2% |
+| **3.2** | ไม่ผ่านเกณฑ์ HC | 375 | 44.9% |
+| **3.3** | ข้อมูลโภชนาการไม่พอ | 267 | 31.9% |
+| **OOS** | นอกขอบเขต HC | 167 | 20.0% |
 
 ## 🧭 Dashboard Sections
 
@@ -48,7 +48,7 @@ streamlit run dashboard.py
 | File | Purpose |
 |------|---------|
 | `dashboard.py` | Streamlit app (main file) |
-| `HC_Dashboard_Data_Public.xlsx` | Anonymized data (1,358 rows, 9 sheets) |
+| `HC_Dashboard_Data_Public.xlsx` | Anonymized data (836 rows, 9 sheets) |
 | `requirements.txt` | Python dependencies |
 
 ## 🔒 Privacy

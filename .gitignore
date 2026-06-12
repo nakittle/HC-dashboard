@@ -15,6 +15,7 @@ output/
 
 # ─── Legacy file patterns (เผื่อมีเหลือ) ──────────────────────
 GDA 2026.xlsx
+GDA 2025.xlsx
 HC_Dashboard_Data.xlsx
 evaluation_result.xlsx
 review_passed_3_1.xlsx
@@ -22,14 +23,25 @@ mapping_review.xlsx
 audit_flags.xlsx
 keyword_map.csv
 hc_criteria.json
-evaluate_hc.py
+evaluate_hc*.py
 anonymize_data.py
 audit_mapping.py
 final_audit.py
 export_dashboard_data.py
 export_passed_3_1.py
 
+# ─── Private engine artifacts (ห้าม push) ──────────────────────
+tests/
+docs/
+scripts/
+HC_*.html
+*.pkl
+*.pdf
+*.tmp
+*.bak
+
 # ─── Python ────────────────────────────────────────────────────
+.pytest_cache/
 __pycache__/
 *.py[cod]
 *$py.class
