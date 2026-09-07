@@ -4,7 +4,7 @@ Streamlit dashboard สรุปผลการประเมินผลิต
 
 ## 📊 Live Dashboard
 
-> **URL**: _(จะใส่หลัง deploy บน Streamlit Cloud)_
+> **URL**: https://hc-gda.streamlit.app/
 
 ## 🎯 Overview
 
