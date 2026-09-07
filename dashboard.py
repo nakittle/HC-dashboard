@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-HC Dashboard — Multi-page Streamlit App (dark theme)
+HC Dashboard — Multi-page Streamlit App (light theme)
 ประเมิน Healthier Choice (HC) สำหรับผลิตภัณฑ์ GDA หลายปีข้อมูล —
 เลือกปีได้จากตัวกรอง "📅 ปีข้อมูล (GDA)" ในแถบด้านข้าง (ทุกหน้าคำนวณตามปีที่เลือก)
 """
@@ -26,7 +26,7 @@ st.set_page_config(
 
 DATA_FILE = Path(__file__).parent / "HC_Dashboard_Data_Public.xlsx"
 
-# ── Palette (dark) ───────────────────────────────────────────────────
+# ── Palette (light) ──────────────────────────────────────────────────
 COLORS = {
     "3.1": "#2FBF8F",   # emerald - ผ่าน
     "3.2": "#FF6B6B",   # coral   - ไม่ผ่าน
@@ -39,24 +39,29 @@ LABEL_TH = {
     "3.3": "3.3 ข้อมูลไม่พอ",
     "OOS": "นอกขอบเขต (OOS)",
 }
-INK = "#E8F2EF"        # primary light text
-MUTED = "#9DB5AE"      # secondary muted text
+NUTRITION_CLAIM_COLS = ["ไม่มีน้ำตาล", "พลังงานต่ำ", "ไขมันต่ำ", "คอเลสเตอรอลต่ำ", "โซเดียมต่ำ"]
+INK = "#16302B"        # primary dark text (on white)
+MUTED = "#5C7D74"      # secondary muted text (on white)
 TEAL = "#2FBF8F"
 CYAN = "#37C7C7"
 BLUE = "#4DA3E8"
 ORANGE = "#F2934A"
 VIOLET = "#9B8CFF"
-CARD_BORDER = "rgba(255,255,255,0.10)"
+CARD_BORDER = "rgba(20,50,45,0.12)"
 
 FONT_FAMILY = "'IBM Plex Sans Thai', 'Segoe UI', sans-serif"
 
-# dark heatmap scales
-HEAT_GREEN = [[0.0, "#0E332C"], [0.5, "#1E7A5C"], [1.0, "#34D399"]]
-HEAT_RED = [[0.0, "#3A1A1C"], [0.5, "#9E3B40"], [1.0, "#FF6B6B"]]
+# light heatmap scales — top stop capped at TEAL (not darker) so the fixed INK
+# cell-label text stays readable at the high end (dark-on-dark heatmap cells
+# were confirmed illegible in a live smoke test; TEAL is already proven
+# readable with INK text elsewhere in this file, e.g. .sec .num / download button)
+HEAT_GREEN = [[0.0, "#EAF7F2"], [0.5, "#7EE0C3"], [1.0, TEAL]]
+HEAT_RED = [[0.0, "#FDEDEE"], [0.5, "#F08088"], [1.0, "#B23A42"]]
 
 
 # ════════════════════════════════════════════════════════════════════
-# PLOTLY DARK TEMPLATE
+# PLOTLY LIGHT TEMPLATE (registered under the legacy name "hcdark" — renaming
+# would require touching every template="hcdark" call site for no functional gain)
 # ════════════════════════════════════════════════════════════════════
 pio.templates["hcdark"] = go.layout.Template(
     layout=dict(
@@ -64,10 +69,10 @@ pio.templates["hcdark"] = go.layout.Template(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         colorway=[TEAL, CYAN, BLUE, ORANGE, VIOLET, "#FF6B6B"],
-        xaxis=dict(gridcolor="rgba(255,255,255,0.07)", zerolinecolor="rgba(255,255,255,0.12)",
+        xaxis=dict(gridcolor="rgba(20,50,45,0.08)", zerolinecolor="rgba(20,50,45,0.18)",
                    automargin=True, tickfont=dict(color=INK, size=13),
                    title=dict(font=dict(color=MUTED, size=13))),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.07)", zerolinecolor="rgba(255,255,255,0.12)",
+        yaxis=dict(gridcolor="rgba(20,50,45,0.08)", zerolinecolor="rgba(20,50,45,0.18)",
                    automargin=True, tickfont=dict(color=INK, size=13),
                    title=dict(font=dict(color=MUTED, size=13))),
         legend=dict(font=dict(size=13, color=INK)),
@@ -78,7 +83,7 @@ pio.templates.default = "hcdark"
 
 
 def show(fig, height=None):
-    """Apply consistent dark template + render."""
+    """Apply consistent template + render."""
     fig.update_layout(template="hcdark", font=dict(family=FONT_FAMILY, color=INK, size=14))
     fig.update_xaxes(automargin=True)
     fig.update_yaxes(automargin=True)
@@ -115,7 +120,7 @@ def show_scrollable(fig, width, height=560):
     wrapper = (
         "<style>@import url('https://fonts.googleapis.com/css2?"
         "family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap');"
-        "html,body{margin:0;padding:0;background:#11302B;}"
+        "html,body{margin:0;padding:0;background:#FFFFFF;}"
         "*{font-family:'IBM Plex Sans Thai',sans-serif;}"
         "::-webkit-scrollbar{height:10px;}"
         "::-webkit-scrollbar-thumb{background:#2FBF8F;border-radius:6px;}</style>"
@@ -142,12 +147,12 @@ def inject_css():
                          'Material Icons' !important;
         }}
 
-        /* teal-green gradient canvas (lightened) */
+        /* white canvas with a subtle teal/cyan tint in the corners */
         .stApp {{
             background:
-              radial-gradient(1200px 600px at 80% -10%, rgba(55,199,199,0.16), transparent 60%),
-              radial-gradient(1000px 700px at -10% 110%, rgba(47,191,143,0.18), transparent 55%),
-              linear-gradient(135deg, #154E45 0%, #1B5A50 45%, #246B5E 100%);
+              radial-gradient(1200px 600px at 80% -10%, rgba(55,199,199,0.10), transparent 60%),
+              radial-gradient(1000px 700px at -10% 110%, rgba(47,191,143,0.10), transparent 55%),
+              #FFFFFF;
         }}
 
         /* hide default chrome but KEEP the sidebar expand button usable */
@@ -181,7 +186,7 @@ def inject_css():
 
         /* ── Sidebar ── */
         section[data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #0B2B29 0%, #0E332E 100%);
+            background: #F5F9F8;
             border-right: 1px solid {CARD_BORDER};
         }}
         section[data-testid="stSidebar"] * {{ color: {INK}; }}
@@ -197,14 +202,14 @@ def inject_css():
             display: flex; align-items: center; justify-content: center; font-size: 22px;
         }}
         .brand .t1 {{ font-size: 0.72rem; letter-spacing: 1.5px; color: {MUTED}; font-weight: 600; }}
-        .brand .t2 {{ font-size: 1.05rem; font-weight: 700; color: #fff; line-height: 1.15; }}
+        .brand .t2 {{ font-size: 1.05rem; font-weight: 700; color: {INK}; line-height: 1.15; }}
 
         /* nav links from st.navigation — keep Streamlit's own layout, only restyle */
         section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"] {{
             border-radius: 10px;
         }}
         section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"]:hover {{
-            background: rgba(255,255,255,0.06);
+            background: rgba(20,50,45,0.05);
         }}
         section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"][aria-current="page"] {{
             background: linear-gradient(120deg, rgba(47,191,143,0.28), rgba(55,199,199,0.16));
@@ -232,12 +237,12 @@ def inject_css():
             border-radius: 20px; padding: 22px 28px; margin-bottom: 18px;
             box-shadow: 0 12px 32px rgba(0,0,0,0.28);
         }}
-        .hero h1 {{ font-size: 1.6rem; font-weight: 700; margin: 0 0 4px 0; color: #fff !important; letter-spacing: -0.3px; }}
+        .hero h1 {{ font-size: 1.6rem; font-weight: 700; margin: 0 0 4px 0; color: {INK} !important; letter-spacing: -0.3px; }}
         .hero p {{ font-size: 0.95rem; margin: 0; color: {INK} !important; }}
         .hero .badge {{
-            display: inline-block; background: rgba(255,255,255,0.12);
+            display: inline-block; background: rgba(20,50,45,0.06);
             border: 1px solid {CARD_BORDER}; padding: 4px 14px; border-radius: 999px;
-            font-size: 0.82rem; margin-top: 12px; font-weight: 500; color: #fff !important;
+            font-size: 0.82rem; margin-top: 12px; font-weight: 500; color: {INK} !important;
         }}
 
         /* ── KPI cards ── */
@@ -257,10 +262,10 @@ def inject_css():
         /* ── glass content cards (st.container border=True) ── */
         [data-testid="stVerticalBlockBorderWrapper"]:has(> div > div [data-testid="stVerticalBlock"]) {{ }}
         div[data-testid="stVerticalBlockBorderWrapper"] {{
-            background: rgba(255,255,255,0.04);
+            background: #FFFFFF;
             border: 1px solid {CARD_BORDER} !important;
             border-radius: 18px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+            box-shadow: 0 4px 16px rgba(20,50,45,0.08);
         }}
 
         /* section header */
@@ -270,7 +275,7 @@ def inject_css():
             width: 34px; height: 34px; border-radius: 10px; display: flex;
             align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0;
         }}
-        .sec .title {{ font-size: 1.25rem; font-weight: 700; color: #fff; }}
+        .sec .title {{ font-size: 1.25rem; font-weight: 700; color: {INK}; }}
         .sec-sub {{ color: {MUTED}; font-size: 0.9rem; margin: 0 0 8px 46px; }}
 
         /* insight banner */
@@ -280,8 +285,8 @@ def inject_css():
             color: {INK}; font-size: 0.92rem; margin: 8px 0 14px 0;
         }}
 
-        h1, h2, h3, h4, h5, h6 {{ color: #fff !important; }}
-        [data-testid="stMetricValue"] {{ color: #fff; }}
+        h1, h2, h3, h4, h5, h6 {{ color: {INK} !important; }}
+        [data-testid="stMetricValue"] {{ color: {INK}; }}
 
         /* download button */
         .stDownloadButton button {{
@@ -328,6 +333,12 @@ def load_data(mtime):
     data = pd.read_excel(DATA_FILE, sheet_name="1_Data")
     fail_detail = pd.read_excel(DATA_FILE, sheet_name="6_Failed_Detail")
     return data, fail_detail
+
+
+@st.cache_data(show_spinner=False)
+def load_nutrition(mtime):
+    """mtime = cache key: invalidates the cache when the xlsx is regenerated in place."""
+    return pd.read_excel(DATA_FILE, sheet_name="9_Nutrition_Claims")
 
 
 def _rules_to_nutrients(rules):
@@ -444,7 +455,7 @@ def build_sidebar_filters(df):
         unsafe_allow_html=True,
     )
     st.sidebar.markdown(
-        f"<div style='font-size:1.0rem;font-weight:700;color:#fff;margin:6px 0 2px'>🔍 ตัวกรอง</div>"
+        f"<div style='font-size:1.0rem;font-weight:700;color:{INK};margin:6px 0 2px'>🔍 ตัวกรอง</div>"
         f"<div style='font-size:0.8rem;color:{MUTED};margin-bottom:8px'>"
         f"คลิกแต่ละปุ่มเพื่อเลือกค่า (ใช้ร่วมกันทุกหน้า)</div>",
         unsafe_allow_html=True,
@@ -488,7 +499,7 @@ def build_sidebar_filters(df):
 
     st.sidebar.divider()
     st.sidebar.metric("รายการที่เลือก", f"{len(f):,} / {len(df):,}")
-    st.sidebar.caption(f"ทุกหน้าคำนวณจาก subset นี้ · ข้อมูล GDA {sel_year} (anonymized)")
+    st.sidebar.caption(f"ทุกหน้าคำนวณจาก subset นี้ · ข้อมูล GDA {sel_year}")
     return f, sel_year, len(df)
 
 
@@ -546,7 +557,7 @@ def page_overview():
             fig = go.Figure(go.Pie(
                 labels=[LABEL_TH[c] for c in cc.index], values=cc.values, hole=0.6,
                 marker=dict(colors=[COLORS[c] for c in cc.index],
-                            line=dict(color="#0C2826", width=2)),
+                            line=dict(color="#FFFFFF", width=2)),
                 texttemplate="%{percent:.1%}", textposition="inside",
                 insidetextorientation="horizontal", sort=False,
                 hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>",
@@ -572,7 +583,7 @@ def page_overview():
             xmax = max(1, int(g["Passed"].max()))
             fig = px.bar(g, x="Passed", y="HC_Group_TH", orientation="h",
                          text="label", color="Passed",
-                         color_continuous_scale=["#13403B", TEAL],
+                         color_continuous_scale=["#EAF7F2", TEAL],
                          custom_data=["Total", "Pass_Rate"])
             fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=80),
                               xaxis_title="จำนวนที่ผ่าน HC (3.1)", yaxis_title="",
@@ -873,7 +884,7 @@ def page_nutrients():
                 top.columns = ["สารอาหาร", "จำนวน"]
                 top = top.sort_values("จำนวน")
                 fig = px.bar(top, x="จำนวน", y="สารอาหาร", orientation="h", text="จำนวน",
-                             color="จำนวน", color_continuous_scale=["#3A1A1C", COLORS["3.2"]])
+                             color="จำนวน", color_continuous_scale=["#FDEDEE", COLORS["3.2"]])
                 fig.update_layout(height=480, margin=dict(t=20, b=20, l=20, r=60),
                                   xaxis_title="จำนวนผลิตภัณฑ์ที่ตก", yaxis_title="",
                                   coloraxis_showscale=False,
@@ -891,7 +902,7 @@ def page_nutrients():
                 cat = fc["หมวด"].value_counts()
                 fig = go.Figure(go.Pie(labels=cat.index, values=cat.values, hole=0.5,
                                        textinfo="label+percent",
-                                       marker=dict(line=dict(color="#0C2826", width=2))))
+                                       marker=dict(line=dict(color="#FFFFFF", width=2))))
                 fig.update_layout(height=480, showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
                 show(fig)
             else:
@@ -986,6 +997,103 @@ def page_nutrients():
             st.info("ไม่มีข้อมูลในตัวกรองนี้")
 
 
+def page_nutrition():
+    # join ด้วย key ผสม (ปี, ลำดับ) เหมือน page_nutrients() — ทุก key ใน FILTERED
+    # มาจากปีที่เลือกอยู่แล้ว (ตัวกรองปีถูกใช้ก่อนตัวกรองอื่นทั้งหมดใน build_sidebar_filters)
+    # จึงไม่ต้องเช็ค NUTRITION["ปี"] == SELECTED_YEAR ซ้ำอีก
+    keys = set(zip(FILTERED["ปี"], FILTERED["ลำดับ"]))
+    if keys:
+        nutri_keys = pd.Series(list(zip(NUTRITION["ปี"], NUTRITION["ลำดับ"])), index=NUTRITION.index)
+        nutri = NUTRITION[nutri_keys.isin(keys)]
+    else:
+        nutri = NUTRITION.iloc[0:0]
+
+    hero("🥗 การวิเคราะห์ด้านโภชนาการและการจัดทำฉลากอาหาร",
+         f"เช็คเงื่อนไขด้านปริมาณสำหรับการกล่าวอ้างทางโภชนาการ ตามประกาศกระทรวงสาธารณสุข "
+         f"(ฉบับที่ 445) บัญชีหมายเลข ๔ — GDA {SELECTED_YEAR}",
+         f"📦 {len(nutri):,} ผลิตภัณฑ์ที่เลือก")
+
+    st.markdown(
+        '<div class="insight">⚠️ <b>การแบ่งระดับสารอาหาร เป็นเพียงการแบ่งตามเงื่อนไขด้านปริมาณ'
+        'ต่อหนึ่งหน่วยบริโภคเท่านั้น</b><br>จำเป็นต้องตรวจสอบด้านปริมาณต่อหนึ่งหน่วยบริโภคอ้างอิง '
+        'และเงื่อนไขเพิ่มเติม ให้ครบถ้วนก่อนการกล่าวอ้างทางโภชนาการ</div>',
+        unsafe_allow_html=True)
+
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        search = c1.text_input("🔎 ค้นหาชื่อผลิตภัณฑ์", placeholder="พิมพ์คำค้นหา...",
+                               key="nutri_search")
+        ptypes = sorted(nutri["ประเภท (อย.)"].dropna().unique().tolist())
+        sel_ptypes = c2.multiselect("🏷️ ประเภทผลิตภัณฑ์ (อย.)", ptypes, key="nutri_ptypes")
+    if search:
+        nutri = nutri[nutri["ผลิตภัณฑ์"].astype(str).str.contains(search, case=False, na=False)]
+    if sel_ptypes:
+        nutri = nutri[nutri["ประเภท (อย.)"].isin(sel_ptypes)]
+
+    total = len(nutri)
+    pct = lambda n: f"{n/total*100:.1f}% ของทั้งหมด" if total else "—"
+    counts = {c: int(nutri[c].sum()) for c in NUTRITION_CLAIM_COLS}
+    kpi_cards([
+        ("จำนวนผลิตภัณฑ์", f"{total:,}", "100%", "linear-gradient(135deg,#1FA88A,#37C7C7)"),
+        ("🍬 ไม่มีน้ำตาล", f"{counts['ไม่มีน้ำตาล']:,}", pct(counts["ไม่มีน้ำตาล"]),
+         "linear-gradient(135deg,#C94B53,#FF6B6B)"),
+        ("⚡ พลังงานต่ำ", f"{counts['พลังงานต่ำ']:,}", pct(counts["พลังงานต่ำ"]),
+         "linear-gradient(135deg,#C9942F,#FFC857)"),
+        ("🧈 ไขมันต่ำ", f"{counts['ไขมันต่ำ']:,}", pct(counts["ไขมันต่ำ"]),
+         "linear-gradient(135deg,#4B6470,#7E97A3)"),
+        ("🥚 คอเลสเตอรอลต่ำ", f"{counts['คอเลสเตอรอลต่ำ']:,}", pct(counts["คอเลสเตอรอลต่ำ"]),
+         "linear-gradient(135deg,#1E9E76,#2FBF8F)"),
+        ("🧂 โซเดียมต่ำ", f"{counts['โซเดียมต่ำ']:,}", pct(counts["โซเดียมต่ำ"]),
+         "linear-gradient(135deg,#4DA3E8,#37C7C7)"),
+    ])
+
+    col_a, col_b = st.columns([1, 1.6])
+    with col_a:
+        with st.container(border=True):
+            st.subheader("สัดส่วนตามประเภทผลิตภัณฑ์ (อย.)")
+            vc = nutri["ประเภท (อย.)"].fillna("(ไม่ระบุ)").value_counts()
+            fig = go.Figure(go.Pie(
+                labels=vc.index, values=vc.values, hole=0.5,
+                marker=dict(line=dict(color="#FFFFFF", width=2)),
+                textinfo="percent",
+                hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>"))
+            fig.update_layout(height=400, showlegend=True,
+                              legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                         xanchor="center", x=0.5),
+                              margin=dict(t=10, b=10, l=10, r=10))
+            show(fig)
+    with col_b:
+        with st.container(border=True):
+            st.subheader("รายละเอียดตัวอย่าง")
+            detail_cols = ["ผลิตภัณฑ์", "ปริมาณสุทธิ (ก.)", "ปริมาณสุทธิ (มล.)",
+                          "หนึ่งหน่วยบริโภค (ก./มล.)"]
+            st.dataframe(nutri[detail_cols], use_container_width=True, hide_index=True,
+                        height=400)
+
+    with st.container(border=True):
+        st.subheader("ค่าสารอาหารต่อหนึ่งหน่วยบริโภค")
+        filt_cols = st.columns(5)
+        claim_filter = {}
+        for col, name in zip(filt_cols, NUTRITION_CLAIM_COLS):
+            claim_filter[name] = col.selectbox(
+                name, ["ทั้งหมด", "เข้าเกณฑ์", "ไม่เข้าเกณฑ์"], key=f"nc_{name}")
+        # ตัวกรองเกณฑ์ด้านบนนี้ กรองเฉพาะตาราง "ค่าสารอาหารต่อหนึ่งหน่วยบริโภค" (view) เท่านั้น
+        # ไม่ย้อนกลับไปกรอง KPI การ์ด / กราฟสัดส่วนประเภท / ตาราง "รายละเอียดตัวอย่าง" ด้านบน
+        # (ส่วนเหล่านั้นยังอิงจาก nutri ที่กรองแค่ค้นหาชื่อ/ประเภทผลิตภัณฑ์เท่านั้น)
+        view = nutri.copy()
+        for name, choice in claim_filter.items():
+            if choice == "เข้าเกณฑ์":
+                view = view[view[name]]
+            elif choice == "ไม่เข้าเกณฑ์":
+                view = view[~view[name]]
+        nutrient_cols = ["ผลิตภัณฑ์", "พลังงาน/หน่วยบริโภค", "ไขมันทั้งหมด/หน่วยบริโภค",
+                        "ไขมันอิ่มตัว/หน่วยบริโภค", "คอเลสเตอรอล/หน่วยบริโภค",
+                        "คาร์โบไฮเดรตทั้งหมด/หน่วยบริโภค", "น้ำตาลทั้งหมด/หน่วยบริโภค",
+                        "โปรตีน/หน่วยบริโภค", "โซเดียม/หน่วยบริโภค", "โพแทสเซียม/หน่วยบริโภค"]
+        st.caption(f"แสดง {len(view):,} จาก {len(nutri):,} รายการ")
+        st.dataframe(view[nutrient_cols], use_container_width=True, hide_index=True, height=460)
+
+
 def page_products():
     f = FILTERED
     hero("📋 ตารางรายละเอียดผลิตภัณฑ์",
@@ -1028,6 +1136,7 @@ except FileNotFoundError:
     st.stop()
 
 FILTERED, SELECTED_YEAR, YEAR_TOTAL = build_sidebar_filters(DATA)
+NUTRITION = load_nutrition(DATA_FILE.stat().st_mtime)
 
 nav = st.navigation([
     st.Page(page_overview, title="ภาพรวม", icon=":material/dashboard:", default=True),
@@ -1036,7 +1145,8 @@ nav = st.navigation([
     st.Page(page_zone, title="เขตสุขภาพ", icon=":material/local_hospital:"),
     st.Page(page_nutrients, title="สารอาหาร", icon=":material/science:"),
     st.Page(page_products, title="ผลิตภัณฑ์", icon=":material/table_chart:"),
+    st.Page(page_nutrition, title="โภชนาการ", icon=":material/nutrition:"),
 ])
 nav.run()
 
-st.caption("© Healthier Choice Evaluation Pipeline — Streamlit + Plotly · ข้อมูล anonymized")
+st.caption("© Healthier Choice Evaluation Pipeline — Streamlit + Plotly")
