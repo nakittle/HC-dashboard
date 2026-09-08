@@ -1162,6 +1162,12 @@ def page_nutrition():
         with st.container(border=True):
             st.subheader("สัดส่วนตามประเภทผลิตภัณฑ์ (อย.)")
             vc = nutri["ประเภท (อย.)"].fillna("(ไม่ระบุ)").value_counts()
+            # ข้อมูลดิบมีหลายสิบ-ร้อยประเภทย่อย (คำสะกดต่างกันเล็กน้อยด้วย) — พล็อตทั้งหมด
+            # ทำให้กราฟวงกลม/legend รกจนอ่านไม่ออก โชว์เฉพาะ top 10 + รวมที่เหลือเป็น "อื่นๆ"
+            TOP_N = 10
+            if len(vc) > TOP_N:
+                vc = pd.concat([vc.iloc[:TOP_N],
+                               pd.Series({"อื่นๆ": vc.iloc[TOP_N:].sum()})])
             fig = go.Figure(go.Pie(
                 labels=vc.index, values=vc.values, hole=0.5,
                 marker=dict(line=dict(color="#FFFFFF", width=2)),
