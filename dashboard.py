@@ -441,18 +441,27 @@ def _push_mirror(sidebar_key, mirror_key):
     st.session_state[sidebar_key] = st.session_state[mirror_key]
 
 
-def mirrored_multiselect(label, sidebar_key, options, fmt=None):
-    """Page-local multiselect that reads/writes the same session_state value as a
+def mirrored_multiselect(label, sidebar_key, options, fmt=None, empty_means_all=False):
+    """Page-local dropdown that reads/writes the same session_state value as a
     sidebar filter_dropdown(key=sidebar_key), so either control stays in sync with
     the other — re-seeded from the sidebar's value on every rerun so changes made
-    there (or by another page) always show up here too."""
+    there (or by another page) always show up here too. Rendered as a compact
+    popover button (summary + checklist inside), matching the sidebar filter's own
+    collapsed look, rather than an always-expanded multiselect."""
     options = list(options)
     canonical = [v for v in st.session_state.get(sidebar_key, options) if v in options]
     mirror_key = f"{sidebar_key}__mirror"
     st.session_state[mirror_key] = canonical
-    st.multiselect(label, options, key=mirror_key, placeholder="ทั้งหมด",
-                   format_func=(fmt or (lambda x: str(x))),
-                   on_change=_push_mirror, args=(sidebar_key, mirror_key))
+    n, total = len(canonical), len(options)
+    fmt = fmt or (lambda x: str(x))
+    if empty_means_all:
+        summary = "ทั้งหมด" if n == 0 else (fmt(canonical[0]) if n == 1 else f"{n} รายการ")
+    else:
+        summary = "ทั้งหมด" if n == total else ((fmt(canonical[0]) if n == 1 else f"{n}/{total}") if n else "—")
+    with st.popover(f"{label}  ·  {summary}", use_container_width=True):
+        st.multiselect(label, options, key=mirror_key, placeholder="เลือกค่า...",
+                       format_func=fmt, label_visibility="collapsed",
+                       on_change=_push_mirror, args=(sidebar_key, mirror_key))
 
 
 def _reset_year_dependent_filters():
@@ -1132,7 +1141,8 @@ def page_products():
                                  sorted(year_df["HC_Group_TH"].dropna().unique().tolist()))
         with c3:
             mirrored_multiselect("📍 จังหวัด", "f_provs",
-                                 sorted(year_df["จังหวัด"].dropna().unique().tolist()))
+                                 sorted(year_df["จังหวัด"].dropna().unique().tolist()),
+                                 empty_means_all=True)
         with c4:
             if "เขตสุขภาพ" in year_df.columns:
                 mirrored_multiselect("🏥 เขตสุขภาพ", "f_zones",
