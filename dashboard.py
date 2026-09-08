@@ -437,6 +437,24 @@ def filter_dropdown(label, key, options, fmt=None, empty_means_all=False, help_t
     return st.session_state[key]
 
 
+def _push_mirror(sidebar_key, mirror_key):
+    st.session_state[sidebar_key] = st.session_state[mirror_key]
+
+
+def mirrored_multiselect(label, sidebar_key, options, fmt=None):
+    """Page-local multiselect that reads/writes the same session_state value as a
+    sidebar filter_dropdown(key=sidebar_key), so either control stays in sync with
+    the other — re-seeded from the sidebar's value on every rerun so changes made
+    there (or by another page) always show up here too."""
+    options = list(options)
+    canonical = [v for v in st.session_state.get(sidebar_key, options) if v in options]
+    mirror_key = f"{sidebar_key}__mirror"
+    st.session_state[mirror_key] = canonical
+    st.multiselect(label, options, key=mirror_key, placeholder="ทั้งหมด",
+                   format_func=(fmt or (lambda x: str(x))),
+                   on_change=_push_mirror, args=(sidebar_key, mirror_key))
+
+
 def _reset_year_dependent_filters():
     # เปลี่ยนปี = ล้างตัวกรองที่ขึ้นกับปี (ตัวเลือกต่างกันในแต่ละปี; ค่าค้างจะตัดค่าที่มี
     # เฉพาะบางปีออกเงียบ ๆ เช่น ผลิตภัณฑ์นม ที่มีเฉพาะปี 2569)
@@ -1100,9 +1118,26 @@ def page_products():
          "ค้นหา กรอง และดาวน์โหลดข้อมูลผลิตภัณฑ์",
          f"📦 {len(f):,} ผลิตภัณฑ์")
 
+    year_df = DATA[DATA["ปี"] == SELECTED_YEAR]
     with st.container(border=True):
         search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด",
                                placeholder="พิมพ์คำค้นหา...")
+        # ตัวกรองเดียวกับแถบด้านข้าง (ซิงก์กันสองทาง) — ให้กรองได้จากหน้านี้โดยตรง
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            mirrored_multiselect("📊 เกณฑ์ Criteria", "f_crits", ["3.1", "3.2", "3.3", "OOS"],
+                                 fmt=lambda x: LABEL_TH.get(x, x))
+        with c2:
+            mirrored_multiselect("🍱 กลุ่ม HC", "f_groups",
+                                 sorted(year_df["HC_Group_TH"].dropna().unique().tolist()))
+        with c3:
+            mirrored_multiselect("📍 จังหวัด", "f_provs",
+                                 sorted(year_df["จังหวัด"].dropna().unique().tolist()))
+        with c4:
+            if "เขตสุขภาพ" in year_df.columns:
+                mirrored_multiselect("🏥 เขตสุขภาพ", "f_zones",
+                                     sorted(year_df["เขตสุขภาพ"].dropna().unique().tolist()),
+                                     fmt=lambda z: f"เขต {z}")
         cols_show = [
             "ปี", "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค", "เขตสุขภาพ",
             "HC_Group_TH", "HC_Subgroup_TH", "Criteria",
