@@ -82,8 +82,11 @@ pio.templates["hcdark"] = go.layout.Template(
 pio.templates.default = "hcdark"
 
 
-def show(fig, height=None):
-    """Apply consistent template + render."""
+def show(fig, height=None, on_select=None, key=None):
+    """Apply consistent template + render. Returns the st.plotly_chart() widget
+    result — a PlotlyState with .selection.points when on_select="rerun" is
+    passed (used by the click-to-filter charts on page_overview); ignored by
+    every other caller."""
     fig.update_layout(template="hcdark", font=dict(family=FONT_FAMILY, color=INK, size=14))
     fig.update_xaxes(automargin=True)
     fig.update_yaxes(automargin=True)
@@ -103,8 +106,9 @@ def show(fig, height=None):
         selector=dict(type="heatmap"),
         textfont=dict(family=FONT_FAMILY, size=12, color=INK),
     )
-    st.plotly_chart(fig, use_container_width=True, theme=None,
-                    config={"displayModeBar": False})
+    kwargs = {"on_select": on_select, "key": key} if on_select else {}
+    return st.plotly_chart(fig, use_container_width=True, theme=None,
+                           config={"displayModeBar": False}, **kwargs)
 
 
 def show_scrollable(fig, width, height=560):
@@ -380,88 +384,72 @@ def load_criteria_nutrient_map_sub(mtime):
 # ════════════════════════════════════════════════════════════════════
 # SIDEBAR (brand + Looker-style dropdown filters)
 # ════════════════════════════════════════════════════════════════════
-def _set_state(key, value):
-    st.session_state[key] = value
+def _toggle_all(key, options):
+    st.session_state[key] = list(options) if st.session_state[f"{key}__all_cb"] else []
 
 
-def _only_state(key, sel_key):
-    """isolate a single value (Looker 'Only'); then reset the picker."""
-    v = st.session_state.get(sel_key)
-    if v is not None:
-        st.session_state[key] = [v]
-    st.session_state[sel_key] = None
+def _toggle_option(key, value):
+    current = st.session_state[key]
+    if st.session_state[f"{key}__opt_{value}"]:
+        if value not in current:
+            st.session_state[key] = current + [value]
+    else:
+        if value in current:
+            st.session_state[key] = [v for v in current if v != value]
 
 
-def filter_dropdown(label, key, options, fmt=None, empty_means_all=False, help_text=None):
-    """Looker-style filter: a button that opens a dropdown with
-    'เลือกเฉพาะค่าเดียว' picker + ทั้งหมด / ล้าง buttons + a checkbox multiselect."""
-    options = list(options)
+def faceted_dropdown(label, key, counts, fmt=None, empty_means_all=False, help_text=None):
+    """Sidebar filter dropdown: collapsed popover trigger (shows selected count) +
+    a 'select all' checkbox (with a partial-selection caption standing in for a
+    true indeterminate state, which Streamlit's checkbox does not support) + a
+    live search box + a scrollable checkbox list, each row showing the option's
+    name and its live count. `counts` is a {value: count} dict pre-computed by the
+    caller against every *other* currently active filter — options with count 0
+    must already be excluded from it (they are hidden entirely, not disabled)."""
+    fmt = fmt or (lambda x: str(x))
+    options = list(counts.keys())
     if key not in st.session_state:
         st.session_state[key] = [] if empty_means_all else list(options)
-    # keep selection valid against current options (cascading filters)
+    # keep selection valid against currently-visible (non-zero) options only
     st.session_state[key] = [v for v in st.session_state[key] if v in options]
     sel = st.session_state[key]
     n, total = len(sel), len(options)
     if empty_means_all:
-        summary = "ทั้งหมด" if n == 0 else (fmt(sel[0]) if (fmt and n == 1) else f"{n} รายการ")
+        summary = "ทั้งหมด" if n == 0 else (fmt(sel[0]) if n == 1 else f"{n} รายการ")
     else:
-        summary = "ทั้งหมด" if n == total else (
-            (fmt(sel[0]) if (fmt and n == 1) else f"{n}/{total}") if n else "—")
-
-    only_key = f"{key}__only"
-    if only_key not in st.session_state:
-        st.session_state[only_key] = None
-    if st.session_state[only_key] not in options:
-        st.session_state[only_key] = None
+        summary = "ทั้งหมด" if n == total else ((fmt(sel[0]) if n == 1 else f"{n}/{total}") if n else "—")
 
     with st.sidebar.popover(f"{label}  ·  {summary}", use_container_width=True):
-        # ── เลือกเฉพาะค่าเดียวในคลิกเดียว (เหมือน "Only" ของ Looker) ──
-        st.selectbox(
-            "เลือกเฉพาะค่าเดียว", options, key=only_key,
-            placeholder="⚡ เลือกเฉพาะค่าเดียว…",
-            format_func=(fmt or (lambda x: str(x))),
-            on_change=_only_state, args=(key, only_key),
-            label_visibility="collapsed",
-        )
-        b1, b2 = st.columns(2)
-        b1.button("เลือกทั้งหมด", key=f"{key}__all", use_container_width=True,
-                  on_click=_set_state, args=(key, list(options)))
-        b2.button("ล้าง", key=f"{key}__clr", use_container_width=True,
-                  on_click=_set_state, args=(key, []))
-        st.caption("หรือติ๊กหลายค่าด้านล่าง")
-        st.multiselect(label, options, key=key,
-                       format_func=(fmt or (lambda x: x)),
-                       label_visibility="collapsed", placeholder="เลือกค่า...")
+        all_cb_key = f"{key}__all_cb"
+        # force-sync before creating the widget so external changes (a chart click,
+        # another filter's cascade) are reflected even though this key already
+        # exists from a prior render
+        st.session_state[all_cb_key] = (n == total and total > 0)
+        all_label = ("เลือกทั้งหมด" if n == total and total > 0
+                    else f"เลือกบางส่วน ({n}/{total})" if n else "เลือกทั้งหมด (ว่าง)")
+        st.checkbox(all_label, key=all_cb_key, on_change=_toggle_all, args=(key, options))
+
+        query = st.text_input("ค้นหา", key=f"{key}__search", placeholder="🔎 ค้นหา...",
+                              label_visibility="collapsed")
+        q = query.strip().lower()
+        visible = [v for v in options if not q or q in fmt(v).lower()]
+
+        list_height = min(250, max(80, 44 * len(visible) + 16))
+        with st.container(height=list_height):
+            if not visible:
+                st.caption("ไม่พบตัวเลือกที่ตรงกับคำค้นหา")
+            for v in visible:
+                opt_key = f"{key}__opt_{v}"
+                st.session_state[opt_key] = v in sel
+                row_l, row_r = st.columns([4, 2])
+                row_l.checkbox(fmt(v), key=opt_key, on_change=_toggle_option, args=(key, v))
+                row_r.markdown(
+                    f"<div style='text-align:right;color:{MUTED};padding-top:8px;"
+                    f"white-space:nowrap'>{counts[v]:,}</div>",
+                    unsafe_allow_html=True)
         if help_text:
             st.caption(help_text)
     return st.session_state[key]
-
-
-def _push_mirror(sidebar_key, mirror_key):
-    st.session_state[sidebar_key] = st.session_state[mirror_key]
-
-
-def mirrored_multiselect(label, sidebar_key, options, fmt=None, empty_means_all=False):
-    """Page-local dropdown that reads/writes the same session_state value as a
-    sidebar filter_dropdown(key=sidebar_key), so either control stays in sync with
-    the other — re-seeded from the sidebar's value on every rerun so changes made
-    there (or by another page) always show up here too. Rendered as a compact
-    popover button (summary + checklist inside), matching the sidebar filter's own
-    collapsed look, rather than an always-expanded multiselect."""
-    options = list(options)
-    canonical = [v for v in st.session_state.get(sidebar_key, options) if v in options]
-    mirror_key = f"{sidebar_key}__mirror"
-    st.session_state[mirror_key] = canonical
-    n, total = len(canonical), len(options)
-    fmt = fmt or (lambda x: str(x))
-    if empty_means_all:
-        summary = "ทั้งหมด" if n == 0 else (fmt(canonical[0]) if n == 1 else f"{n} รายการ")
-    else:
-        summary = "ทั้งหมด" if n == total else ((fmt(canonical[0]) if n == 1 else f"{n}/{total}") if n else "—")
-    with st.popover(f"{label}  ·  {summary}", use_container_width=True):
-        st.multiselect(label, options, key=mirror_key, placeholder="เลือกค่า...",
-                       format_func=fmt, label_visibility="collapsed",
-                       on_change=_push_mirror, args=(sidebar_key, mirror_key))
 
 
 def _reset_year_dependent_filters():
@@ -493,35 +481,67 @@ def build_sidebar_filters(df):
     sel_year = st.sidebar.selectbox("📅 ปีข้อมูล (GDA)", years, index=0, key="f_year",
                                     on_change=_reset_year_dependent_filters)
     df = df[df["ปี"] == sel_year]
+    has_zone = "เขตสุขภาพ" in df.columns
 
-    regions = sorted(df["ภูมิภาค"].dropna().unique().tolist())
-    sel_regions = filter_dropdown("🌏 ภูมิภาค", "f_regions", regions)
+    all_regions = sorted(df["ภูมิภาค"].dropna().unique().tolist())
+    all_zones = sorted(df["เขตสุขภาพ"].dropna().unique().tolist()) if has_zone else []
+    all_groups = sorted(df["HC_Group_TH"].dropna().unique().tolist())
+    all_crits = ["3.1", "3.2", "3.3", "OOS"]
 
-    if "เขตสุขภาพ" in df.columns:
-        zones = sorted(df["เขตสุขภาพ"].dropna().unique().tolist())
-        sel_zones = filter_dropdown("🏥 เขตสุขภาพ", "f_zones", zones,
-                                    fmt=lambda z: f"เขต {z}")
+    # ค่าที่เลือกอยู่ ณ ตอนต้นของ rerun นี้ (หลังจาก callback ของ interaction ล่าสุดทำงานแล้ว)
+    # ใช้คำนวณ live count ของตัวกรองอื่น ๆ (all-but-self) — ไม่ใช้คำนวณ f สุดท้าย (ใช้ sel_* แทน)
+    cur_regions = st.session_state.get("f_regions", all_regions)
+    cur_zones = st.session_state.get("f_zones", all_zones)
+    cur_provs = st.session_state.get("f_provs", [])
+    cur_groups = st.session_state.get("f_groups", all_groups)
+    cur_crits = st.session_state.get("f_crits", all_crits)
+
+    def others(exclude):
+        # every branch is guarded by "current selection is non-empty": for
+        # cross-filter counting (unlike the final `f` below), an emptied-out
+        # facet must NOT zero out every other facet's options too — that would
+        # collapse all 5 dropdowns to 0 options with no way to recover except
+        # a page reload, the first time a user clicked any "select all" off
+        d = df
+        if exclude != "region" and cur_regions:
+            d = d[d["ภูมิภาค"].isin(cur_regions)]
+        if has_zone and exclude != "zone" and cur_zones:
+            d = d[d["เขตสุขภาพ"].isin(cur_zones)]
+        if exclude != "prov" and cur_provs:
+            d = d[d["จังหวัด"].isin(cur_provs)]
+        if exclude != "group" and cur_groups:
+            d = d[d["HC_Group_TH"].isin(cur_groups)]
+        if exclude != "crit" and cur_crits:
+            d = d[d["Criteria"].isin(cur_crits)]
+        return d
+
+    sel_regions = faceted_dropdown("🌏 ภูมิภาค", "f_regions",
+                                   others("region")["ภูมิภาค"].value_counts().to_dict())
+
+    if has_zone:
+        sel_zones = faceted_dropdown("🏥 เขตสุขภาพ", "f_zones",
+                                     others("zone")["เขตสุขภาพ"].value_counts().to_dict(),
+                                     fmt=lambda z: f"เขต {z}")
     else:
         sel_zones = None
 
-    provs_available = sorted(
-        df[df["ภูมิภาค"].isin(sel_regions)]["จังหวัด"].dropna().unique().tolist())
-    sel_provs = filter_dropdown("📍 จังหวัด", "f_provs", provs_available,
-                                empty_means_all=True,
-                                help_text="ว่าง = ทุกจังหวัดในภูมิภาคที่เลือก")
+    sel_provs = faceted_dropdown("📍 จังหวัด", "f_provs",
+                                 others("prov")["จังหวัด"].value_counts().to_dict(),
+                                 empty_means_all=True,
+                                 help_text="ว่าง = ทุกจังหวัด")
 
-    groups = sorted(df["HC_Group_TH"].dropna().unique().tolist())
-    sel_groups = filter_dropdown("🍱 กลุ่ม HC", "f_groups", groups)
+    sel_groups = faceted_dropdown("🍱 กลุ่ม HC", "f_groups",
+                                  others("group")["HC_Group_TH"].value_counts().to_dict())
 
-    crits = ["3.1", "3.2", "3.3", "OOS"]
-    sel_crits = filter_dropdown("📊 เกณฑ์ Criteria", "f_crits", crits,
-                                fmt=lambda x: LABEL_TH.get(x, x))
+    sel_crits = faceted_dropdown("📊 เกณฑ์ Criteria", "f_crits",
+                                 others("crit")["Criteria"].value_counts().to_dict(),
+                                 fmt=lambda x: LABEL_TH.get(x, x))
 
     f = df[df["ภูมิภาค"].isin(sel_regions) & df["HC_Group_TH"].isin(sel_groups)
            & df["Criteria"].isin(sel_crits)]
     if sel_provs:
         f = f[f["จังหวัด"].isin(sel_provs)]
-    if sel_zones is not None and "เขตสุขภาพ" in f.columns:
+    if sel_zones is not None and has_zone:
         f = f[f["เขตสุขภาพ"].isin(sel_zones)]
 
     st.sidebar.divider()
@@ -595,7 +615,18 @@ def page_overview():
                 margin=dict(t=10, b=10, l=10, r=10),
                 annotations=[dict(text=f"<b>{total:,}</b><br>รายการ", x=0.5, y=0.5,
                                   font=dict(size=18, color=INK), showarrow=False)])
-            show(fig)
+            donut_event = show(fig, on_select="rerun", key="ov_donut")
+            _pts = (donut_event or {}).get("selection", {}).get("points", [])
+            clicked_label = _pts[0].get("label") if _pts else None
+            if clicked_label != st.session_state.get("_ov_donut_sig"):
+                st.session_state["_ov_donut_sig"] = clicked_label
+                label_to_code = {LABEL_TH[c]: c for c in cc.index}
+                clicked_code = label_to_code.get(clicked_label)
+                if clicked_code and st.session_state.get("f_crits") != [clicked_code]:
+                    st.session_state["f_crits"] = [clicked_code]
+                else:
+                    st.session_state.pop("f_crits", None)
+                st.rerun()
     with col_b:
         with st.container(border=True):
             st.subheader("กลุ่มผลิตภัณฑ์ที่ผ่าน HC")
@@ -605,9 +636,11 @@ def page_overview():
             # % = สัดส่วนที่ผ่าน เทียบกับจำนวนทั้งหมดในกลุ่มของตัวเอง
             g["Pass_Rate"] = (g["Passed"] / g["Total"].replace(0, 1) * 100).round(1)
             g = g.sort_values("Passed")
-            g["label"] = g.apply(
-                lambda r: f"{int(r['Passed'])} ({r['Pass_Rate']}%)", axis=1)
-            xmax = max(1, int(g["Passed"].max()))
+            # vectorized (not .apply(axis=1)): that raises on an empty g, since pandas
+            # can't infer a Series result shape with zero rows to sample from
+            g["label"] = (g["Passed"].astype(int).astype(str)
+                          + " (" + g["Pass_Rate"].astype(str) + "%)")
+            xmax = max(1, int(g["Passed"].max())) if len(g) else 1
             fig = px.bar(g, x="Passed", y="HC_Group_TH", orientation="h",
                          text="label", color="Passed",
                          color_continuous_scale=["#EAF7F2", TEAL],
@@ -620,7 +653,45 @@ def page_overview():
                 textposition="outside", textangle=0, cliponaxis=False,
                 hovertemplate="%{y}<br>ผ่าน HC: %{x} จากทั้งกลุ่ม %{customdata[0]} "
                               "(%{customdata[1]}%)<extra></extra>")
-            show(fig)
+            bar_event = show(fig, on_select="rerun", key="ov_bar")
+            _bpts = (bar_event or {}).get("selection", {}).get("points", [])
+            clicked_group = _bpts[0].get("y") if _bpts else None
+            if clicked_group != st.session_state.get("_ov_bar_sig"):
+                st.session_state["_ov_bar_sig"] = clicked_group
+                if clicked_group and st.session_state.get("f_groups") != [clicked_group]:
+                    # กราฟนี้แสดงเฉพาะสินค้าที่ผ่าน HC (3.1) อยู่แล้ว — ล็อก Criteria ไว้ที่ 3.1
+                    # ด้วย ไม่งั้นตารางจะโชว์ทุกเกรดของกลุ่มนั้น ไม่ตรงกับสิ่งที่กราฟสื่อ
+                    st.session_state["f_groups"] = [clicked_group]
+                    st.session_state["f_crits"] = ["3.1"]
+                else:
+                    st.session_state.pop("f_groups", None)
+                    st.session_state.pop("f_crits", None)
+                st.rerun()
+
+    st.divider()
+    with st.container(border=True):
+        st.subheader("📋 ตารางรายละเอียดผลิตภัณฑ์")
+        search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด",
+                               placeholder="พิมพ์คำค้นหา...", key="ov_search")
+        cols_show = [
+            "ปี", "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค", "เขตสุขภาพ",
+            "HC_Group_TH", "HC_Subgroup_TH", "Criteria",
+            "พลังงาน/100", "น้ำตาล/100", "โซเดียม/100", "ไขมัน/100", "ไขมันอิ่มตัว/100",
+            "Failed_Nutrients", "Missing_Nutrients"]
+        cols_show = [c for c in cols_show if c in f.columns]
+        view = f[cols_show].copy()
+        if search:
+            s = search.lower()
+            mask = (
+                view["ผลิตภัณฑ์"].astype(str).str.lower().str.contains(s, na=False) |
+                view["ประเภท (อย.)"].astype(str).str.lower().str.contains(s, na=False) |
+                view["จังหวัด"].astype(str).str.lower().str.contains(s, na=False))
+            view = view[mask]
+        st.caption(f"แสดง {len(view):,} จาก {len(f):,} รายการ")
+        st.dataframe(view, use_container_width=True, hide_index=True, height=460)
+        csv = view.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("📥 ดาวน์โหลด CSV", csv,
+                           file_name=f"hc_filtered_{len(view)}_items.csv", mime="text/csv")
 
 
 def page_groups():
@@ -1121,54 +1192,6 @@ def page_nutrition():
         st.dataframe(view[nutrient_cols], use_container_width=True, hide_index=True, height=460)
 
 
-def page_products():
-    f = FILTERED
-    hero("📋 ตารางรายละเอียดผลิตภัณฑ์",
-         "ค้นหา กรอง และดาวน์โหลดข้อมูลผลิตภัณฑ์",
-         f"📦 {len(f):,} ผลิตภัณฑ์")
-
-    year_df = DATA[DATA["ปี"] == SELECTED_YEAR]
-    with st.container(border=True):
-        search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด",
-                               placeholder="พิมพ์คำค้นหา...")
-        # ตัวกรองเดียวกับแถบด้านข้าง (ซิงก์กันสองทาง) — ให้กรองได้จากหน้านี้โดยตรง
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            mirrored_multiselect("📊 เกณฑ์ Criteria", "f_crits", ["3.1", "3.2", "3.3", "OOS"],
-                                 fmt=lambda x: LABEL_TH.get(x, x))
-        with c2:
-            mirrored_multiselect("🍱 กลุ่ม HC", "f_groups",
-                                 sorted(year_df["HC_Group_TH"].dropna().unique().tolist()))
-        with c3:
-            mirrored_multiselect("📍 จังหวัด", "f_provs",
-                                 sorted(year_df["จังหวัด"].dropna().unique().tolist()),
-                                 empty_means_all=True)
-        with c4:
-            if "เขตสุขภาพ" in year_df.columns:
-                mirrored_multiselect("🏥 เขตสุขภาพ", "f_zones",
-                                     sorted(year_df["เขตสุขภาพ"].dropna().unique().tolist()),
-                                     fmt=lambda z: f"เขต {z}")
-        cols_show = [
-            "ปี", "ลำดับ", "ผลิตภัณฑ์", "ประเภท (อย.)", "จังหวัด", "ภูมิภาค", "เขตสุขภาพ",
-            "HC_Group_TH", "HC_Subgroup_TH", "Criteria",
-            "พลังงาน/100", "น้ำตาล/100", "โซเดียม/100", "ไขมัน/100", "ไขมันอิ่มตัว/100",
-            "Failed_Nutrients", "Missing_Nutrients"]
-        cols_show = [c for c in cols_show if c in f.columns]
-        view = f[cols_show].copy()
-        if search:
-            s = search.lower()
-            mask = (
-                view["ผลิตภัณฑ์"].astype(str).str.lower().str.contains(s, na=False) |
-                view["ประเภท (อย.)"].astype(str).str.lower().str.contains(s, na=False) |
-                view["จังหวัด"].astype(str).str.lower().str.contains(s, na=False))
-            view = view[mask]
-        st.caption(f"แสดง {len(view):,} จาก {len(f):,} รายการ")
-        st.dataframe(view, use_container_width=True, hide_index=True, height=460)
-        csv = view.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("📥 ดาวน์โหลด CSV", csv,
-                           file_name=f"hc_filtered_{len(view)}_items.csv", mime="text/csv")
-
-
 # ════════════════════════════════════════════════════════════════════
 # MAIN
 # ════════════════════════════════════════════════════════════════════
@@ -1189,7 +1212,6 @@ nav = st.navigation([
     st.Page(page_geo, title="ภูมิภาค", icon=":material/public:"),
     st.Page(page_zone, title="เขตสุขภาพ", icon=":material/local_hospital:"),
     st.Page(page_nutrients, title="สารอาหาร", icon=":material/science:"),
-    st.Page(page_products, title="ผลิตภัณฑ์", icon=":material/table_chart:"),
     st.Page(page_nutrition, title="โภชนาการ", icon=":material/nutrition:"),
 ])
 nav.run()
