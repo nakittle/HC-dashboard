@@ -385,47 +385,70 @@ def load_criteria_nutrient_map_sub(mtime):
 # SIDEBAR (brand + Looker-style dropdown filters)
 # ════════════════════════════════════════════════════════════════════
 def _toggle_all(key, options):
-    st.session_state[key] = list(options) if st.session_state[f"{key}__all_cb"] else []
+    st.session_state[key] = None if st.session_state[f"{key}__all_cb"] else []
 
 
-def _toggle_option(key, value):
+def _toggle_option(key, value, options):
     current = st.session_state[key]
+    # materialize "unrestricted" into a concrete list before editing it, so a
+    # single uncheck doesn't have to mean "restrict to just this one" — see
+    # faceted_dropdown's docstring for why None vs [] are different states
+    base = list(options) if current is None else current
     if st.session_state[f"{key}__opt_{value}"]:
-        if value not in current:
-            st.session_state[key] = current + [value]
+        if value not in base:
+            base = base + [value]
     else:
-        if value in current:
-            st.session_state[key] = [v for v in current if v != value]
+        if value in base:
+            base = [v for v in base if v != value]
+    st.session_state[key] = base
 
 
-def faceted_dropdown(label, key, counts, fmt=None, empty_means_all=False, help_text=None):
+def faceted_dropdown(label, key, counts, fmt=None, help_text=None):
     """Sidebar filter dropdown: collapsed popover trigger (shows selected count) +
     a 'select all' checkbox (with a partial-selection caption standing in for a
     true indeterminate state, which Streamlit's checkbox does not support) + a
     live search box + a scrollable checkbox list, each row showing the option's
     name and its live count. `counts` is a {value: count} dict pre-computed by the
     caller against every *other* currently active filter — options with count 0
-    must already be excluded from it (they are hidden entirely, not disabled)."""
+    must already be excluded from it (they are hidden entirely, not disabled).
+
+    session_state[key] is `None` to mean "no restriction from this facet" — the
+    default, and the ONLY state that must survive cross-filter narrowing untouched.
+    A plain [] would be ambiguous (does it mean "never touched" or "user explicitly
+    unchecked everything"?), and collapsing that distinction is exactly what caused
+    a real bug: narrowing facet A used to cascade-trim facet B's *stored* selection
+    down to whatever was still valid, so once A widened back out, B had no memory
+    of ever being unrestricted and stayed stuck narrow. `None` never gets trimmed
+    (the cascading-validity step below is skipped entirely for it), so an untouched
+    facet can't be corrupted by another facet's narrowing, no matter how many times
+    they're toggled back and forth. `[]` still means "explicitly nothing selected"."""
     fmt = fmt or (lambda x: str(x))
     options = list(counts.keys())
     if key not in st.session_state:
-        st.session_state[key] = [] if empty_means_all else list(options)
-    # keep selection valid against currently-visible (non-zero) options only
-    st.session_state[key] = [v for v in st.session_state[key] if v in options]
-    sel = st.session_state[key]
-    n, total = len(sel), len(options)
-    if empty_means_all:
-        summary = "ทั้งหมด" if n == 0 else (fmt(sel[0]) if n == 1 else f"{n} รายการ")
-    else:
-        summary = "ทั้งหมด" if n == total else ((fmt(sel[0]) if n == 1 else f"{n}/{total}") if n else "—")
+        st.session_state[key] = None
+    raw = st.session_state[key]
+    if raw is not None:
+        # keep an explicit selection valid against currently-visible options only
+        raw = [v for v in raw if v in options]
+        if len(raw) == len(options):
+            # re-materialized (or grew back) to exactly everything currently
+            # visible -> collapse back to "unrestricted" so the trigger reads
+            # "ทั้งหมด" again and this facet regains immunity from being
+            # trimmed by some other facet's future narrowing
+            raw = None
+        st.session_state[key] = raw
+    effective = options if raw is None else raw
+    n, total = len(effective), len(options)
+    summary = ("ทั้งหมด" if raw is None
+              else ((fmt(raw[0]) if n == 1 else f"{n}/{total}") if n else "—"))
 
     with st.sidebar.popover(f"{label}  ·  {summary}", use_container_width=True):
         all_cb_key = f"{key}__all_cb"
         # force-sync before creating the widget so external changes (a chart click,
         # another filter's cascade) are reflected even though this key already
         # exists from a prior render
-        st.session_state[all_cb_key] = (n == total and total > 0)
-        all_label = ("เลือกทั้งหมด" if n == total and total > 0
+        st.session_state[all_cb_key] = (raw is None and total > 0)
+        all_label = ("เลือกทั้งหมด" if raw is None and total > 0
                     else f"เลือกบางส่วน ({n}/{total})" if n else "เลือกทั้งหมด (ว่าง)")
         st.checkbox(all_label, key=all_cb_key, on_change=_toggle_all, args=(key, options))
 
@@ -440,16 +463,16 @@ def faceted_dropdown(label, key, counts, fmt=None, empty_means_all=False, help_t
                 st.caption("ไม่พบตัวเลือกที่ตรงกับคำค้นหา")
             for v in visible:
                 opt_key = f"{key}__opt_{v}"
-                st.session_state[opt_key] = v in sel
+                st.session_state[opt_key] = v in effective
                 row_l, row_r = st.columns([4, 2])
-                row_l.checkbox(fmt(v), key=opt_key, on_change=_toggle_option, args=(key, v))
+                row_l.checkbox(fmt(v), key=opt_key, on_change=_toggle_option, args=(key, v, options))
                 row_r.markdown(
                     f"<div style='text-align:right;color:{MUTED};padding-top:8px;"
                     f"white-space:nowrap'>{counts[v]:,}</div>",
                     unsafe_allow_html=True)
         if help_text:
             st.caption(help_text)
-    return st.session_state[key]
+    return effective
 
 
 def _reset_year_dependent_filters():
@@ -483,35 +506,27 @@ def build_sidebar_filters(df):
     df = df[df["ปี"] == sel_year]
     has_zone = "เขตสุขภาพ" in df.columns
 
-    all_regions = sorted(df["ภูมิภาค"].dropna().unique().tolist())
-    all_zones = sorted(df["เขตสุขภาพ"].dropna().unique().tolist()) if has_zone else []
-    all_groups = sorted(df["HC_Group_TH"].dropna().unique().tolist())
-    all_crits = ["3.1", "3.2", "3.3", "OOS"]
-
     # ค่าที่เลือกอยู่ ณ ตอนต้นของ rerun นี้ (หลังจาก callback ของ interaction ล่าสุดทำงานแล้ว)
     # ใช้คำนวณ live count ของตัวกรองอื่น ๆ (all-but-self) — ไม่ใช้คำนวณ f สุดท้าย (ใช้ sel_* แทน)
-    cur_regions = st.session_state.get("f_regions", all_regions)
-    cur_zones = st.session_state.get("f_zones", all_zones)
-    cur_provs = st.session_state.get("f_provs", [])
-    cur_groups = st.session_state.get("f_groups", all_groups)
-    cur_crits = st.session_state.get("f_crits", all_crits)
+    # None = ยังไม่ได้แตะ (ไม่จำกัด); ต้องแยกจาก [] (เลือกไม่มีเลยโดยตั้งใจ) มิเช่นนั้นตัวกรอง
+    # ที่ไม่ได้แตะจะโดน trim ค้างแคบตามตัวกรองอื่นแบบถอนกลับไม่ได้ (บั๊กเดิม)
+    cur_regions = st.session_state.get("f_regions")
+    cur_zones = st.session_state.get("f_zones")
+    cur_provs = st.session_state.get("f_provs")
+    cur_groups = st.session_state.get("f_groups")
+    cur_crits = st.session_state.get("f_crits")
 
     def others(exclude):
-        # every branch is guarded by "current selection is non-empty": for
-        # cross-filter counting (unlike the final `f` below), an emptied-out
-        # facet must NOT zero out every other facet's options too — that would
-        # collapse all 5 dropdowns to 0 options with no way to recover except
-        # a page reload, the first time a user clicked any "select all" off
         d = df
-        if exclude != "region" and cur_regions:
+        if exclude != "region" and cur_regions is not None:
             d = d[d["ภูมิภาค"].isin(cur_regions)]
-        if has_zone and exclude != "zone" and cur_zones:
+        if has_zone and exclude != "zone" and cur_zones is not None:
             d = d[d["เขตสุขภาพ"].isin(cur_zones)]
-        if exclude != "prov" and cur_provs:
+        if exclude != "prov" and cur_provs is not None:
             d = d[d["จังหวัด"].isin(cur_provs)]
-        if exclude != "group" and cur_groups:
+        if exclude != "group" and cur_groups is not None:
             d = d[d["HC_Group_TH"].isin(cur_groups)]
-        if exclude != "crit" and cur_crits:
+        if exclude != "crit" and cur_crits is not None:
             d = d[d["Criteria"].isin(cur_crits)]
         return d
 
@@ -526,9 +541,7 @@ def build_sidebar_filters(df):
         sel_zones = None
 
     sel_provs = faceted_dropdown("📍 จังหวัด", "f_provs",
-                                 others("prov")["จังหวัด"].value_counts().to_dict(),
-                                 empty_means_all=True,
-                                 help_text="ว่าง = ทุกจังหวัด")
+                                 others("prov")["จังหวัด"].value_counts().to_dict())
 
     sel_groups = faceted_dropdown("🍱 กลุ่ม HC", "f_groups",
                                   others("group")["HC_Group_TH"].value_counts().to_dict())
@@ -538,10 +551,8 @@ def build_sidebar_filters(df):
                                  fmt=lambda x: LABEL_TH.get(x, x))
 
     f = df[df["ภูมิภาค"].isin(sel_regions) & df["HC_Group_TH"].isin(sel_groups)
-           & df["Criteria"].isin(sel_crits)]
-    if sel_provs:
-        f = f[f["จังหวัด"].isin(sel_provs)]
-    if sel_zones is not None and has_zone:
+           & df["Criteria"].isin(sel_crits) & df["จังหวัด"].isin(sel_provs)]
+    if has_zone:
         f = f[f["เขตสุขภาพ"].isin(sel_zones)]
 
     st.sidebar.divider()
