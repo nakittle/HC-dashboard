@@ -535,7 +535,7 @@ def build_sidebar_filters(df):
 
     if has_zone:
         sel_zones = faceted_dropdown("🏥 เขตสุขภาพ", "f_zones",
-                                     others("zone")["เขตสุขภาพ"].value_counts().to_dict(),
+                                     others("zone")["เขตสุขภาพ"].value_counts().sort_index().to_dict(),
                                      fmt=lambda z: f"เขต {z}")
     else:
         sel_zones = None
@@ -547,7 +547,8 @@ def build_sidebar_filters(df):
                                   others("group")["HC_Group_TH"].value_counts().to_dict())
 
     sel_crits = faceted_dropdown("📊 เกณฑ์ Criteria", "f_crits",
-                                 others("crit")["Criteria"].value_counts().to_dict(),
+                                 others("crit")["Criteria"].value_counts()
+                                 .reindex(["3.1", "3.2", "3.3", "OOS"]).dropna().astype(int).to_dict(),
                                  fmt=lambda x: LABEL_TH.get(x, x))
 
     f = df[df["ภูมิภาค"].isin(sel_regions) & df["HC_Group_TH"].isin(sel_groups)
