@@ -4,6 +4,7 @@ HC Dashboard — Multi-page Streamlit App (light theme)
 ประเมิน Healthier Choice (HC) สำหรับผลิตภัณฑ์ GDA หลายปีข้อมูล —
 เลือกปีได้จากตัวกรอง "📅 ปีข้อมูล (GDA)" ในแถบด้านข้าง (ทุกหน้าคำนวณตามปีที่เลือก)
 """
+import html
 import json
 
 import pandas as pd
@@ -109,6 +110,34 @@ def show(fig, height=None, on_select=None, key=None):
     kwargs = {"on_select": on_select, "key": key} if on_select else {}
     return st.plotly_chart(fig, use_container_width=True, theme=None,
                            config={"displayModeBar": False}, **kwargs)
+
+
+CRITERIA_BADGE = {
+    "3.1": ("✅", "3.1 ผ่าน HC", "#1E9E76"),
+    "3.2": ("❌", "3.2 ไม่ผ่าน HC", "#C94B53"),
+    "3.3": ("⚠️", "3.3 ข้อมูลไม่พอ", "#C9942F"),
+    "OOS": ("➖", "นอกขอบเขต (OOS)", "#4B6470"),
+}
+
+
+@st.dialog("รายละเอียดผลิตภัณฑ์")
+def show_product_detail(row):
+    st.markdown(f"### {row['ผลิตภัณฑ์']}")
+    group_name = row.get("HC_Group_TH")
+    group_line = group_name if isinstance(group_name, str) and group_name.strip() else "-"
+    subgroup_name = row.get("HC_Subgroup_TH")
+    if isinstance(subgroup_name, str) and subgroup_name.strip():
+        group_line += f" / {subgroup_name}"
+    st.write(f"**หมวด HC:** {group_line}")
+    icon, label, color = CRITERIA_BADGE.get(row["Criteria"], ("", row["Criteria"], INK))
+    st.markdown(f"**เกณฑ์:** <span style='color:{color};font-weight:700'>{icon} {html.escape(str(label))}</span>",
+               unsafe_allow_html=True)
+    st.divider()
+    st.markdown("**รายการตรวจ:**")
+    trace_text = row.get("รายการตรวจ")
+    trace_text = trace_text if isinstance(trace_text, str) and trace_text.strip() else "-"
+    for part in trace_text.split(" | "):
+        st.markdown(f"- {part}")
 
 
 def show_scrollable(fig, width, height=560):
@@ -683,6 +712,7 @@ def page_overview():
     st.divider()
     with st.container(border=True):
         st.subheader("📋 ตารางรายละเอียดผลิตภัณฑ์")
+        st.caption("คลิกแถวเพื่อดูรายละเอียดการประเมิน (หมวด HC, เกณฑ์, รายการตรวจ)")
         search = st.text_input("🔎 ค้นหาในผลิตภัณฑ์ / ประเภท / จังหวัด",
                                placeholder="พิมพ์คำค้นหา...", key="ov_search")
         cols_show = [
@@ -691,7 +721,12 @@ def page_overview():
             "พลังงาน/100", "น้ำตาล/100", "โซเดียม/100", "ไขมัน/100", "ไขมันอิ่มตัว/100",
             "Failed_Nutrients", "Missing_Nutrients"]
         cols_show = [c for c in cols_show if c in f.columns]
-        view = f[cols_show].copy()
+        # "รายการตรวจ" is fetched but not shown as a visible column (column_order
+        # below controls that) — it rides along on each row purely so the popup
+        # can read it after a row is selected, without a second lookup.
+        popup_col = "รายการตรวจ"
+        data_cols = cols_show + ([popup_col] if popup_col in f.columns and popup_col not in cols_show else [])
+        view = f[data_cols].copy()
         if search:
             s = search.lower()
             mask = (
@@ -699,9 +734,33 @@ def page_overview():
                 view["ประเภท (อย.)"].astype(str).str.lower().str.contains(s, na=False) |
                 view["จังหวัด"].astype(str).str.lower().str.contains(s, na=False))
             view = view[mask]
+        view = view.reset_index(drop=True)
         st.caption(f"แสดง {len(view):,} จาก {len(f):,} รายการ")
-        st.dataframe(view, use_container_width=True, hide_index=True, height=460)
-        csv = view.to_csv(index=False).encode("utf-8-sig")
+        table_event = st.dataframe(view, column_order=cols_show, on_select="rerun",
+                                   selection_mode="single-row", key="ov_table_select",
+                                   use_container_width=True, hide_index=True, height=460)
+        sel_rows = (table_event or {}).get("selection", {}).get("rows", [])
+        sel_idx = sel_rows[0] if sel_rows else None
+        if sel_idx is not None and sel_idx >= len(view):
+            # the search box changed view's row count under the same widget
+            # key since the click — the old position no longer maps to
+            # anything, so drop it rather than risk an out-of-range .iloc
+            sel_idx = None
+        # st.dialog's own dismissal does not clear st.dataframe's selection, so
+        # without this guard the popup would silently reopen on the next
+        # unrelated rerun (e.g. the user changing a sidebar filter afterward) —
+        # only (re)open it when the selection has actually changed. Keyed by row
+        # IDENTITY (ปี, ลำดับ), not bare position: a position-only key would miss
+        # a real new click when a search refinement swaps in a different product
+        # at the same row index the user previously clicked (ลำดับ alone repeats
+        # across years — see export_public.py's own (ปี, ลำดับ) uniqueness note —
+        # so both fields are needed to identify a row).
+        sel_row_id = (view.iloc[sel_idx]["ปี"], view.iloc[sel_idx]["ลำดับ"]) if sel_idx is not None else None
+        if sel_row_id != st.session_state.get("_ov_row_dialog_sig"):
+            st.session_state["_ov_row_dialog_sig"] = sel_row_id
+            if sel_idx is not None:
+                show_product_detail(view.iloc[sel_idx])
+        csv = view[cols_show].to_csv(index=False).encode("utf-8-sig")
         st.download_button("📥 ดาวน์โหลด CSV", csv,
                            file_name=f"hc_filtered_{len(view)}_items.csv", mime="text/csv")
 
