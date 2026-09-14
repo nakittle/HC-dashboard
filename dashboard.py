@@ -119,6 +119,25 @@ CRITERIA_BADGE = {
     "OOS": ("➖", "นอกขอบเขต (OOS)", "#4B6470"),
 }
 
+# แปลชื่อสารอาหาร/เกณฑ์อ้างอิงในแต่ละบรรทัดของ "รายการตรวจ" (มาจาก pipeline.hc_engine.rules
+# .render_trace ผ่านคอลัมน์ "รายการตรวจ") เป็นภาษาไทย — ครอบคลุมทุกชื่อ "name" ที่ trace.append()
+# เคยสร้างใน rules.py (ยืนยันด้วย grep, ไม่มีที่อื่นสร้าง trace) ให้ตรงกับศัพท์ที่ใช้ในหน้าอื่นของ
+# แดชบอร์ดเอง (เทียบ V100_TH ใน export_public.py: พลังงาน/น้ำตาล/โซเดียม/ไขมัน/ไขมันอิ่มตัว)
+NUTRIENT_NAME_TH = {
+    "sugar": "น้ำตาล", "sodium": "โซเดียม", "fat": "ไขมัน", "satfat": "ไขมันอิ่มตัว", "energy": "พลังงาน",
+    "sugar/100ml": "น้ำตาล/100 มล.", "sodium/100ml": "โซเดียม/100 มล.",
+    "fat/100ml": "ไขมัน/100 มล.", "satfat/100ml": "ไขมันอิ่มตัว/100 มล.", "energy/100ml": "พลังงาน/100 มล.",
+    "sugar/100kcal": "น้ำตาล/100 กิโลแคลอรี", "sodium/100kcal": "โซเดียม/100 กิโลแคลอรี",
+    "fat/100kcal": "ไขมัน/100 กิโลแคลอรี",
+    "sodium/50g": "โซเดียม/50 กรัม", "satfat/50g": "ไขมันอิ่มตัว/50 กรัม",
+    "sugar/pack": "น้ำตาล/ซอง", "sodium/pack": "โซเดียม/ซอง", "satfat/pack": "ไขมันอิ่มตัว/ซอง",
+    "energy/serving": "พลังงาน/หน่วยบริโภค", "energy/serving-min": "พลังงาน/หน่วยบริโภค",
+    "fat_two_tier/tier1_max": "ไขมัน (เกณฑ์ที่ 1)",
+    "fat_two_tier/tier2_extended_max": "ไขมัน (เกณฑ์ขยาย)",
+    "fat_two_tier/satfat_ratio": "สัดส่วนไขมันอิ่มตัวต่อไขมันรวม",
+    "satfat/fat_ratio": "สัดส่วนไขมันอิ่มตัวต่อไขมันรวม",
+}
+
 
 @st.dialog("รายละเอียดผลิตภัณฑ์")
 def show_product_detail(row):
@@ -137,7 +156,12 @@ def show_product_detail(row):
     trace_text = row.get("รายการตรวจ")
     trace_text = trace_text if isinstance(trace_text, str) and trace_text.strip() else "-"
     for part in trace_text.split(" | "):
-        st.markdown(f"- {part}")
+        # แต่ละ part มาจาก render_trace(): "{name} {actual} {op} {limit} {mark}" —
+        # แปลเฉพาะ name (คำแรกก่อนช่องว่างแรก) เป็นไทย ส่วนที่เหลือ (ตัวเลข/เครื่องหมาย)
+        # คงเดิม. ข้อความ fallback แบบเต็มประโยค (เช่น ข้อความ OOS/force-3.3) ไม่มี key
+        # ตรงในดิกชันนารี -> .get คืนค่าคำเดิม ต่อกลับเป็นประโยคเดิมทุกตัวอักษร ไม่กระทบ
+        name, sep, rest = part.partition(" ")
+        st.markdown(f"- {NUTRIENT_NAME_TH.get(name, name)}{sep}{rest}")
 
 
 def show_scrollable(fig, width, height=560):
