@@ -153,6 +153,7 @@ NUTRIENT_NAME_TH = {
     "fat_two_tier/tier2_extended_max": "ไขมัน (ต่อ 100 กรัม, เกณฑ์ขยาย)",
     "fat_two_tier/satfat_ratio": "สัดส่วนไขมันอิ่มตัวต่อไขมันรวม",
     "satfat/fat_ratio": "สัดส่วนไขมันอิ่มตัวต่อไขมันรวม",
+    "fiber/100g": "ใยอาหาร (ต่อ 100 กรัม)", "fiber/100ml": "ใยอาหาร (ต่อ 100 มล.)",
 }
 
 
