@@ -452,6 +452,12 @@ def load_criteria_nutrient_map_sub(mtime):
     return m
 
 
+@st.cache_data(show_spinner=False)
+def load_criteria_ref(mtime):
+    """Sheet 8 ทั้งดิบ — ใช้แสดงหน้า "เกณฑ์ HC" (infographic). mtime = cache key."""
+    return pd.read_excel(DATA_FILE, sheet_name="8_HC_Criteria_Reference")
+
+
 # ════════════════════════════════════════════════════════════════════
 # SIDEBAR (brand + Looker-style dropdown filters)
 # ════════════════════════════════════════════════════════════════════
@@ -634,6 +640,11 @@ def build_sidebar_filters(df):
            & df["Criteria"].isin(sel_crits) & df["จังหวัด"].isin(sel_provs)]
     if has_zone:
         f = f[f["เขตสุขภาพ"].isin(sel_zones)]
+
+    # ปุ่มรีเซ็ทตัวกรองทั้งหมด — ใช้ตัว reset เดียวกับตอนเปลี่ยนปี (เคลียร์ทั้ง 5 ตัวกรอง
+    # แต่ไม่แตะปีข้อมูลที่เลือกอยู่ ปีถือเป็นโหมดข้อมูล ไม่ใช่ตัวกรองแบบ facet)
+    st.sidebar.button("🔄 รีเซ็ทตัวกรองทั้งหมด", on_click=_reset_year_dependent_filters,
+                      use_container_width=True)
 
     st.sidebar.divider()
     st.sidebar.metric("รายการที่เลือก", f"{len(f):,} / {len(df):,}")
@@ -1320,6 +1331,175 @@ def page_nutrition():
 
 
 # ════════════════════════════════════════════════════════════════════
+# เกณฑ์ HC (infographic) — อ่านจาก sheet "8_HC_Criteria_Reference" ที่ export_public.py
+# resolve ค่าตามปีบังคับใช้แล้ว (ไม่มี "phases" ค้าง) เก็บ Rules เป็น JSON string ต่อแถว
+# ════════════════════════════════════════════════════════════════════
+GROUP_ICON = {
+    "beverage": "🥤", "instant_food": "🍜", "seasoning": "🧂", "ice_cream": "🍦",
+    "meal": "🍽️", "cereal": "🥣", "dairy": "🥛", "fat_oil": "🫙",
+    "bread": "🍞", "snack": "🍪", "bakery": "🧁", "meat_product": "🥩",
+    "fish_seafood": "🐟", "small_meal": "🥟", "milk_alternative": "🌱",
+}
+
+CRIT_BASIS_TH = {
+    "per_100g": "ต่อ 100 กรัม", "per_100ml": "ต่อ 100 มล.",
+    "per_100kcal": "ต่อพลังงาน 100 กิโลแคลอรี",
+    "per_100g_prepared": "ต่ออาหารพร้อมบริโภค 100 กรัม",
+    "per_50g": "ต่อ 50 กรัม",
+}
+
+# แปล key ดิบจาก sheet 8 (มาจาก data/hc_criteria.json ตรงๆ ผ่าน pipeline/export_public.py's
+# build_criteria_reference — ไม่ใช่ชื่อ "รายการตรวจ" แบบ trace ใน rules.py, คนละรูปแบบกัน)
+# เป็นบรรทัดภาษาไทยสำหรับหน้านี้โดยเฉพาะ. {basis} ใช้เฉพาะ key เปล่าที่ไม่มี suffix ต่อ100ก./มล.
+# ในตัวเอง (ต้องพึ่งคอลัมน์ Basis ของแถวนั้นบอกหน่วยจริง)
+CRIT_RULE_LABEL_TH = {
+    "sugar_max": "น้ำตาล ≤ {v} ก. {basis}",
+    "sugar_max_per_100ml": "น้ำตาล ≤ {v} ก. ต่อ 100 มล.",
+    "sugar_max_per_pack": "น้ำตาล ≤ {v} ก. ต่อหน่วยบริโภค",
+    "sugar_max_per_pack_if_300_500ml": "น้ำตาล ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
+    "sugar_max_per_pack_if_oversize": "น้ำตาล ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
+    "sodium_max": "โซเดียม ≤ {v} มก. {basis}",
+    "sodium_max_per_100ml": "โซเดียม ≤ {v} มก. ต่อ 100 มล.",
+    "sodium_max_per_100ml_tomato_based": "โซเดียม ≤ {v} มก. ต่อ 100 มล. (สูตรมะเขือเทศ)",
+    "sodium_max_per_50g": "โซเดียม ≤ {v} มก. ต่อ 50 ก.",
+    "sodium_max_per_pack_if_over_50g": "โซเดียม ≤ {v} มก. ต่อบรรจุภัณฑ์ (กรณีหน่วยบริโภค > 50 ก.)",
+    "sodium_small_dry_max_per_50g": "โซเดียม ≤ {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบแห้ง)",
+    "sodium_small_wet_max_per_50g": "โซเดียม ≤ {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบเปียก)",
+    "sodium_large_dry_max_per_pack": "โซเดียม ≤ {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบแห้ง)",
+    "sodium_large_wet_max_per_pack": "โซเดียม ≤ {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบเปียก)",
+    "fat_max": "ไขมันทั้งหมด ≤ {v} ก. {basis}",
+    "fat_max_per_100ml": "ไขมันทั้งหมด ≤ {v} ก. ต่อ 100 มล.",
+    "fat_max_per_pack_if_300_500ml": "ไขมันทั้งหมด ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
+    "fat_max_per_pack_if_oversize": "ไขมันทั้งหมด ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
+    "saturated_fat_max": "ไขมันอิ่มตัว ≤ {v} ก. {basis}",
+    "saturated_fat_max_per_100ml": "ไขมันอิ่มตัว ≤ {v} ก. ต่อ 100 มล.",
+    "satfat_small_max_per_50g": "ไขมันอิ่มตัว ≤ {v} ก. ต่อ 50 ก. (บรรจุเล็ก)",
+    "satfat_large_max_per_pack": "ไขมันอิ่มตัว ≤ {v} ก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่)",
+    "energy_max": "พลังงาน ≤ {v} กิโลแคลอรี {basis}",
+    "energy_max_per_100ml": "พลังงาน ≤ {v} กิโลแคลอรี ต่อ 100 มล.",
+    "energy_max_per_serving": "พลังงาน ≤ {v} กิโลแคลอรี ต่อหน่วยบริโภค",
+    "energy_per_serving_min": "พลังงาน ≥ {v} กิโลแคลอรี ต่อหน่วยบริโภค",
+    "energy_per_serving_max": "พลังงาน ≤ {v} กิโลแคลอรี ต่อหน่วยบริโภค",
+    "fiber_min": "ใยอาหาร ≥ {v} ก. {basis}",
+    "fiber_min_per_100ml": "ใยอาหาร ≥ {v} ก. ต่อ 100 มล.",
+    "added_oil_max_pct_for_flavoring": "น้ำมันที่เติมเพื่อแต่งกลิ่นรสได้ไม่เกิน {v}% ของน้ำหนัก",
+}
+
+# พารามิเตอร์ประกอบ (ไม่ใช่เกณฑ์สารอาหารโดยตรง) — แสดงเป็นบรรทัด "เงื่อนไข" แยกต่างหาก
+# แทนที่จะพยายามจับคู่กับกฎแบบมีเงื่อนไขที่มันประกอบอยู่ (ป้องกันจับคู่ผิดกฎ)
+CRIT_CONTEXT_LABEL_TH = {
+    "max_pack_size_ml": "ขนาดบรรจุภัณฑ์มาตรฐานสูงสุด {v} มล.",
+    "oversize_threshold_ml": "นับเป็นบรรจุภัณฑ์ใหญ่เมื่อ > {v} มล.",
+    "oversize_threshold_g": "นับเป็นบรรจุภัณฑ์ใหญ่เมื่อ > {v} ก.",
+    "tomato_content_pct_threshold": "เข้าเกณฑ์สูตรมะเขือเทศเมื่อมีมะเขือเทศ ≥ {v}% ของน้ำหนัก",
+}
+
+
+def _crit_fmt_num(v):
+    if isinstance(v, float) and v == int(v):
+        return str(int(v))
+    return str(v)
+
+
+def _format_criteria_rules(rules, basis):
+    """คืน (bullets, notes) เป็นข้อความไทยจาก dict เกณฑ์ดิบหนึ่งกลุ่มย่อย."""
+    bullets, notes = [], []
+    if rules.get("operator") == "lt":
+        notes.append('ใช้เกณฑ์แบบ "น้อยกว่า" อย่างเข้มงวด — ค่าที่เท่ากับเกณฑ์พอดี ถือว่าไม่ผ่าน')
+    for key, label in CRIT_CONTEXT_LABEL_TH.items():
+        if key in rules:
+            notes.append(label.format(v=_crit_fmt_num(rules[key])))
+
+    basis_th = CRIT_BASIS_TH.get(basis, "")
+    for key, value in rules.items():
+        if key in ("operator",) or key in CRIT_CONTEXT_LABEL_TH:
+            continue
+        if key == "fat_two_tier":
+            ratio_pct = round(value.get("satfat_to_fat_ratio_max", 0) * 100)
+            bullets.append(
+                f"ไขมันทั้งหมด ≤ {_crit_fmt_num(value['fat_max'])} ก. (หรือ ≤ "
+                f"{_crit_fmt_num(value['extended_fat_max'])} ก. หากไขมันอิ่มตัวไม่เกิน "
+                f"{ratio_pct}% ของไขมันรวม)")
+        elif key == "satfat_to_fat_ratio_max":
+            bullets.append(f"สัดส่วนไขมันอิ่มตัวต่อไขมันรวม ≤ {round(value * 100)}%")
+        elif key == "added_sugar_allowed":
+            if value is False:
+                bullets.append("ห้ามเติมน้ำตาลเพิ่ม (Added Sugar)")
+        elif key == "added_oil_allowed":
+            if value is False:
+                bullets.append("ห้ามเติมน้ำมันเพิ่ม (Added Oil)")
+        else:
+            template = CRIT_RULE_LABEL_TH.get(key)
+            bullets.append(template.format(v=_crit_fmt_num(value), basis=basis_th) if template
+                           else f"{key}: {value}")  # fallback กันไม่ให้ key ใหม่ในอนาคตหายไปเงียบๆ
+    return bullets, notes
+
+
+def page_criteria():
+    ref = load_criteria_ref(DATA_FILE.stat().st_mtime)
+
+    # เรียงกลุ่มตามจำนวนผลิตภัณฑ์จริงมาก→น้อย (ทั้งชุดข้อมูล ไม่ใช่ FILTERED — หน้านี้คือตาราง
+    # เกณฑ์กติกา ไม่ใช่ผลตรวจรายปี จึงไม่ผูกกับตัวกรอง/ปีที่เลือกอยู่). DATA (sheet 1_Data)
+    # มีแค่คอลัมน์ HC_Group_TH (ไม่มี HC_Group key ภาษาอังกฤษ) จึงต้องแมพผ่านชื่อไทยที่ ref มีทั้งคู่
+    th_to_key = dict(zip(ref["HC_Group_TH"], ref["HC_Group"]))
+    order_th = DATA["HC_Group_TH"].value_counts().index.tolist()
+    groups_ordered = [th_to_key[th] for th in order_th if th in th_to_key]
+    # กลุ่มที่มีนิยามเกณฑ์จริงแต่บังเอิญไม่มีผลิตภัณฑ์แม้แต่ตัวเดียวในข้อมูล GDA ปัจจุบัน (เช่น
+    # milk_alternative) จะไม่ติด value_counts() ด้านบนเลย — ต่อท้ายแทนที่จะตัดทิ้งเงียบๆ เพราะหน้านี้
+    # คือเอกสารอ้างอิงเกณฑ์ *ทั้งหมด* ไม่ใช่สรุปเฉพาะกลุ่มที่เจอในข้อมูลจริง
+    groups_ordered += [g for g in ref["HC_Group"].unique() if g not in groups_ordered]
+
+    enforcement_year = int(ref["ระยะที่ใช้ตัดสิน"].iloc[0]) if len(ref) else SELECTED_YEAR
+
+    hero("📐 เกณฑ์การประเมิน Healthier Choice รายกลุ่ม",
+         "สรุปเกณฑ์ปริมาณสารอาหารที่ใช้ตัดสิน Criteria 3.1/3.2/3.3 ของแต่ละกลุ่ม/กลุ่มย่อย HC "
+         'ตามประกาศ "ทางเลือกสุขภาพ" ฉบับที่ 4',
+         f"📚 {len(groups_ordered)} กลุ่ม HC · {len(ref)} รายการเกณฑ์ย่อย · บังคับใช้ปี {enforcement_year}")
+
+    st.markdown(
+        '<div class="insight">ℹ️ <b>หน้านี้แสดงเกณฑ์อ้างอิงที่ระบบใช้ตัดสินจริง</b> '
+        '(ค่าที่ resolve ตามปีบังคับใช้ล่าสุดแล้ว) — <b>ไม่ขึ้นกับตัวกรอง "ปีข้อมูล (GDA)"</b> '
+        'ที่แถบด้านข้าง เนื่องจากเป็นตารางเกณฑ์กติกา ไม่ใช่ข้อมูลผลการตรวจรายปี</div>',
+        unsafe_allow_html=True)
+
+    for gk in groups_ordered:
+        grp = ref[ref["HC_Group"] == gk]
+        gth = grp["HC_Group_TH"].iloc[0]
+        icon = GROUP_ICON.get(gk, "🍽️")
+        n_sub = grp["Subgroup_TH"].notna().sum()
+        sub_label = f"{n_sub} กลุ่มย่อย" if n_sub else "ไม่มีกลุ่มย่อย"
+
+        with st.expander(f"{icon}  {gth}  ·  {sub_label}", expanded=False):
+            rows = list(grp.iterrows())
+            for i, (_, row) in enumerate(rows):
+                basis = row["Basis"] if isinstance(row["Basis"], str) and row["Basis"].strip() else None
+                sub_th = (row["Subgroup_TH"] if isinstance(row["Subgroup_TH"], str)
+                          and row["Subgroup_TH"].strip() else None)
+                raw = row["Rules"]
+                try:
+                    rules = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
+                except Exception:
+                    rules = {}
+
+                if not rules:
+                    if sub_th:
+                        st.markdown(f"**{sub_th}**")
+                    st.caption("⚠️ ไม่มีเกณฑ์ตัวเลขที่ตรวจสอบได้จากข้อมูล GDA สำหรับกลุ่มนี้ — "
+                              "ผลิตภัณฑ์จะได้ 3.3 (ข้อมูลไม่พอ) เสมอ ไม่ว่าค่าสารอาหารจะเป็นเท่าใด")
+                else:
+                    header_bits = ([f"**{sub_th}**"] if sub_th else []) + (
+                        [f"_{CRIT_BASIS_TH.get(basis, basis)}_"] if basis else [])
+                    if header_bits:
+                        st.markdown(" · ".join(header_bits))
+                    bullets, notes = _format_criteria_rules(rules, basis)
+                    st.markdown("\n".join(f"- {b}" for b in bullets))
+                    for note in notes:
+                        st.caption(f"↳ {note}")
+                if i < len(rows) - 1:
+                    st.markdown("---")
+
+
+# ════════════════════════════════════════════════════════════════════
 # MAIN
 # ════════════════════════════════════════════════════════════════════
 inject_css()
@@ -1340,6 +1520,7 @@ nav = st.navigation([
     st.Page(page_zone, title="เขตสุขภาพ", icon=":material/local_hospital:"),
     st.Page(page_nutrients, title="สารอาหาร", icon=":material/science:"),
     st.Page(page_nutrition, title="โภชนาการ", icon=":material/nutrition:"),
+    st.Page(page_criteria, title="เกณฑ์ HC", icon=":material/rule:"),
 ])
 nav.run()
 
