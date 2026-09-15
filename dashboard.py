@@ -1352,34 +1352,41 @@ CRIT_BASIS_TH = {
 # build_criteria_reference — ไม่ใช่ชื่อ "รายการตรวจ" แบบ trace ใน rules.py, คนละรูปแบบกัน)
 # เป็นบรรทัดภาษาไทยสำหรับหน้านี้โดยเฉพาะ. {basis} ใช้เฉพาะ key เปล่าที่ไม่มี suffix ต่อ100ก./มล.
 # ในตัวเอง (ต้องพึ่งคอลัมน์ Basis ของแถวนั้นบอกหน่วยจริง)
+# หมายเหตุ {op}: กฎแบบ "_max" ทุกตัวจะแสดง "≤" ตามปกติ แต่บางกลุ่มย่อยของฉบับ4 (มันฝรั่ง/ข้าวโพด
+# ทอดกรอบ, สาหร่ายทอด, เนื้อสัตว์แผ่นทอด, ขนมปังกรอบ/เวเฟอร์, บะหมี่กึ่งสำเร็จรูป, นมทางเลือก) ระบุ
+# "operator": "lt" ให้ใช้ "<" (น้อยกว่าอย่างเข้มงวด) แทน — ต้องคำนวณ {op} ต่อแถวใน
+# _format_criteria_rules() แล้วส่งเข้ามาแทนที่จะ hardcode "≤" ไว้ตรงๆ มิเช่นนั้นบรรทัดเกณฑ์กับ
+# หมายเหตุ "ใช้เกณฑ์แบบน้อยกว่าอย่างเข้มงวด" ที่โชว์คู่กันจะขัดแย้งกันเอง (บั๊กจริงที่ user ชี้ให้ดู
+# 2026-09-15: กลุ่มมันฝรั่งมีโน้ตบอกว่าใช้ "<" แต่ทุก bullet ยังโชว์ "≤" เหมือนเดิม). กฎแบบ "_min"
+# (fiber_min ฯลฯ) ไม่ได้รับผลจาก operator เลย (rules.py's chk_min ใช้ ">=" ตายตัว) จึงคง "≥" ไว้ตรงๆ
 CRIT_RULE_LABEL_TH = {
-    "sugar_max": "น้ำตาล ≤ {v} ก. {basis}",
-    "sugar_max_per_100ml": "น้ำตาล ≤ {v} ก. ต่อ 100 มล.",
-    "sugar_max_per_pack": "น้ำตาล ≤ {v} ก. ต่อหน่วยบริโภค",
-    "sugar_max_per_pack_if_300_500ml": "น้ำตาล ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
-    "sugar_max_per_pack_if_oversize": "น้ำตาล ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
-    "sodium_max": "โซเดียม ≤ {v} มก. {basis}",
-    "sodium_max_per_100ml": "โซเดียม ≤ {v} มก. ต่อ 100 มล.",
-    "sodium_max_per_100ml_tomato_based": "โซเดียม ≤ {v} มก. ต่อ 100 มล. (สูตรมะเขือเทศ)",
-    "sodium_max_per_50g": "โซเดียม ≤ {v} มก. ต่อ 50 ก.",
-    "sodium_max_per_pack_if_over_50g": "โซเดียม ≤ {v} มก. ต่อบรรจุภัณฑ์ (กรณีหน่วยบริโภค > 50 ก.)",
-    "sodium_small_dry_max_per_50g": "โซเดียม ≤ {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบแห้ง)",
-    "sodium_small_wet_max_per_50g": "โซเดียม ≤ {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบเปียก)",
-    "sodium_large_dry_max_per_pack": "โซเดียม ≤ {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบแห้ง)",
-    "sodium_large_wet_max_per_pack": "โซเดียม ≤ {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบเปียก)",
-    "fat_max": "ไขมันทั้งหมด ≤ {v} ก. {basis}",
-    "fat_max_per_100ml": "ไขมันทั้งหมด ≤ {v} ก. ต่อ 100 มล.",
-    "fat_max_per_pack_if_300_500ml": "ไขมันทั้งหมด ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
-    "fat_max_per_pack_if_oversize": "ไขมันทั้งหมด ≤ {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
-    "saturated_fat_max": "ไขมันอิ่มตัว ≤ {v} ก. {basis}",
-    "saturated_fat_max_per_100ml": "ไขมันอิ่มตัว ≤ {v} ก. ต่อ 100 มล.",
-    "satfat_small_max_per_50g": "ไขมันอิ่มตัว ≤ {v} ก. ต่อ 50 ก. (บรรจุเล็ก)",
-    "satfat_large_max_per_pack": "ไขมันอิ่มตัว ≤ {v} ก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่)",
-    "energy_max": "พลังงาน ≤ {v} กิโลแคลอรี {basis}",
-    "energy_max_per_100ml": "พลังงาน ≤ {v} กิโลแคลอรี ต่อ 100 มล.",
-    "energy_max_per_serving": "พลังงาน ≤ {v} กิโลแคลอรี ต่อหน่วยบริโภค",
+    "sugar_max": "น้ำตาล {op} {v} ก. {basis}",
+    "sugar_max_per_100ml": "น้ำตาล {op} {v} ก. ต่อ 100 มล.",
+    "sugar_max_per_pack": "น้ำตาล {op} {v} ก. ต่อหน่วยบริโภค",
+    "sugar_max_per_pack_if_300_500ml": "น้ำตาล {op} {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
+    "sugar_max_per_pack_if_oversize": "น้ำตาล {op} {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
+    "sodium_max": "โซเดียม {op} {v} มก. {basis}",
+    "sodium_max_per_100ml": "โซเดียม {op} {v} มก. ต่อ 100 มล.",
+    "sodium_max_per_100ml_tomato_based": "โซเดียม {op} {v} มก. ต่อ 100 มล. (สูตรมะเขือเทศ)",
+    "sodium_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก.",
+    "sodium_max_per_pack_if_over_50g": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (กรณีหน่วยบริโภค > 50 ก.)",
+    "sodium_small_dry_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบแห้ง)",
+    "sodium_small_wet_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบเปียก)",
+    "sodium_large_dry_max_per_pack": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบแห้ง)",
+    "sodium_large_wet_max_per_pack": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบเปียก)",
+    "fat_max": "ไขมันทั้งหมด {op} {v} ก. {basis}",
+    "fat_max_per_100ml": "ไขมันทั้งหมด {op} {v} ก. ต่อ 100 มล.",
+    "fat_max_per_pack_if_300_500ml": "ไขมันทั้งหมด {op} {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
+    "fat_max_per_pack_if_oversize": "ไขมันทั้งหมด {op} {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
+    "saturated_fat_max": "ไขมันอิ่มตัว {op} {v} ก. {basis}",
+    "saturated_fat_max_per_100ml": "ไขมันอิ่มตัว {op} {v} ก. ต่อ 100 มล.",
+    "satfat_small_max_per_50g": "ไขมันอิ่มตัว {op} {v} ก. ต่อ 50 ก. (บรรจุเล็ก)",
+    "satfat_large_max_per_pack": "ไขมันอิ่มตัว {op} {v} ก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่)",
+    "energy_max": "พลังงาน {op} {v} กิโลแคลอรี {basis}",
+    "energy_max_per_100ml": "พลังงาน {op} {v} กิโลแคลอรี ต่อ 100 มล.",
+    "energy_max_per_serving": "พลังงาน {op} {v} กิโลแคลอรี ต่อหน่วยบริโภค",
     "energy_per_serving_min": "พลังงาน ≥ {v} กิโลแคลอรี ต่อหน่วยบริโภค",
-    "energy_per_serving_max": "พลังงาน ≤ {v} กิโลแคลอรี ต่อหน่วยบริโภค",
+    "energy_per_serving_max": "พลังงาน {op} {v} กิโลแคลอรี ต่อหน่วยบริโภค",
     "fiber_min": "ใยอาหาร ≥ {v} ก. {basis}",
     "fiber_min_per_100ml": "ใยอาหาร ≥ {v} ก. ต่อ 100 มล.",
     "added_oil_max_pct_for_flavoring": "น้ำมันที่เติมเพื่อแต่งกลิ่นรสได้ไม่เกิน {v}% ของน้ำหนัก",
@@ -1404,7 +1411,11 @@ def _crit_fmt_num(v):
 def _format_criteria_rules(rules, basis):
     """คืน (bullets, notes) เป็นข้อความไทยจาก dict เกณฑ์ดิบหนึ่งกลุ่มย่อย."""
     bullets, notes = [], []
-    if rules.get("operator") == "lt":
+    strict = rules.get("operator") == "lt"
+    # "≤" ตามค่าเริ่มต้นของ evaluate_threshold(); เปลี่ยนเป็น "<" เฉพาะกฎแบบ max ที่ operator="lt"
+    # ระบุไว้จริง (chk_max ใน rules.py) — กฎแบบ min (fiber_min ฯลฯ) ไม่ได้รับผลจาก flag นี้เลย
+    op = "<" if strict else "≤"
+    if strict:
         notes.append('ใช้เกณฑ์แบบ "น้อยกว่า" อย่างเข้มงวด — ค่าที่เท่ากับเกณฑ์พอดี ถือว่าไม่ผ่าน')
     for key, label in CRIT_CONTEXT_LABEL_TH.items():
         if key in rules:
@@ -1417,11 +1428,11 @@ def _format_criteria_rules(rules, basis):
         if key == "fat_two_tier":
             ratio_pct = round(value.get("satfat_to_fat_ratio_max", 0) * 100)
             bullets.append(
-                f"ไขมันทั้งหมด ≤ {_crit_fmt_num(value['fat_max'])} ก. (หรือ ≤ "
+                f"ไขมันทั้งหมด {op} {_crit_fmt_num(value['fat_max'])} ก. (หรือ {op} "
                 f"{_crit_fmt_num(value['extended_fat_max'])} ก. หากไขมันอิ่มตัวไม่เกิน "
                 f"{ratio_pct}% ของไขมันรวม)")
         elif key == "satfat_to_fat_ratio_max":
-            bullets.append(f"สัดส่วนไขมันอิ่มตัวต่อไขมันรวม ≤ {round(value * 100)}%")
+            bullets.append(f"สัดส่วนไขมันอิ่มตัวต่อไขมันรวม {op} {round(value * 100)}%")
         elif key == "added_sugar_allowed":
             if value is False:
                 bullets.append("ห้ามเติมน้ำตาลเพิ่ม (Added Sugar)")
@@ -1430,7 +1441,7 @@ def _format_criteria_rules(rules, basis):
                 bullets.append("ห้ามเติมน้ำมันเพิ่ม (Added Oil)")
         else:
             template = CRIT_RULE_LABEL_TH.get(key)
-            bullets.append(template.format(v=_crit_fmt_num(value), basis=basis_th) if template
+            bullets.append(template.format(v=_crit_fmt_num(value), basis=basis_th, op=op) if template
                            else f"{key}: {value}")  # fallback กันไม่ให้ key ใหม่ในอนาคตหายไปเงียบๆ
     return bullets, notes
 
