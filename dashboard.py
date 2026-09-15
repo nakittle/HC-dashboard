@@ -757,7 +757,8 @@ def page_overview():
                          color_continuous_scale=["#EAF7F2", TEAL],
                          custom_data=["Total", "Pass_Rate"])
             fig.update_layout(height=400, margin=dict(t=20, b=20, l=20, r=80),
-                              xaxis_title="จำนวนที่ผ่าน HC (3.1)", yaxis_title="",
+                              xaxis_title="จำนวนที่ผ่าน HC (3.1)",
+                              yaxis=dict(title="", automargin=True),
                               coloraxis_showscale=False,
                               xaxis_range=[0, xmax * 1.25])
             fig.update_traces(
@@ -860,7 +861,7 @@ def page_groups():
                 cliponaxis=False))
         fig.update_layout(barmode="stack", height=max(420, len(pivot) * 36),
                           margin=dict(t=20, b=20, l=20, r=20),
-                          xaxis_title="จำนวน", yaxis_title="",
+                          xaxis_title="จำนวน", yaxis=dict(title="", automargin=True),
                           uniformtext=dict(mode="show", minsize=11),
                           legend=dict(orientation="h", y=-0.1))
         fig.update_traces(textangle=0)
@@ -915,7 +916,8 @@ def page_geo():
                              color_continuous_scale=[COLORS["3.2"], COLORS["3.3"], COLORS["3.1"]],
                              hover_data=["Total", "Passed"])
                 fig.update_layout(height=420, margin=dict(t=20, b=20, l=20, r=60),
-                                  xaxis_title="% ผ่าน HC", yaxis_title="",
+                                  xaxis_title="% ผ่าน HC",
+                                  yaxis=dict(title="", automargin=True),
                                   coloraxis_showscale=False,
                                   xaxis_range=[0, max(1, ps["Pass_Rate"].max()) * 1.18])
                 fig.update_traces(texttemplate="%{text}%", textposition="outside",
