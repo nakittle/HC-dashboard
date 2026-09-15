@@ -145,7 +145,8 @@ NUTRIENT_NAME_TH = {
     "sodium/100kcal": "โซเดียม (ต่อพลังงาน 100 กิโลแคลอรี)",
     "fat/100kcal": "ไขมัน (ต่อพลังงาน 100 กิโลแคลอรี)",
     "sodium/50g": "โซเดียม (ต่อ 50 กรัม)", "satfat/50g": "ไขมันอิ่มตัว (ต่อ 50 กรัม)",
-    "sugar/serving": "น้ำตาล (ต่อหน่วยบริโภค)",
+    "sugar/serving": "น้ำตาล (ต่อหน่วยบริโภค)", "fat/serving": "ไขมัน (ต่อหน่วยบริโภค)",
+    "sodium/100ml_tomato_based": "โซเดียม (ต่อ 100 มล., สูตรมะเขือเทศ)",
     "sodium/whole_pack": "โซเดียม (ต่อหนึ่งบรรจุภัณฑ์)",
     "satfat/whole_pack": "ไขมันอิ่มตัว (ต่อหนึ่งบรรจุภัณฑ์)",
     "energy/serving": "พลังงาน (ต่อหน่วยบริโภค)", "energy/serving-min": "พลังงาน (ต่อหน่วยบริโภค)",
@@ -576,11 +577,19 @@ def build_sidebar_filters(df):
         unsafe_allow_html=True,
     )
 
-    # ── ปีข้อมูล: เลือกได้ทีละปี (ค่าเริ่มต้น = ปีล่าสุด) — กรองก่อนตัวกรองอื่นทั้งหมด ──
+    # ── ปีข้อมูล: เลือกทีละปี หรือ "ทั้งหมด" รวมทุกปี (ค่าเริ่มต้น = ปีล่าสุด) — กรองก่อน
+    # ตัวกรองอื่นทั้งหมด. ทุกหน้า/ตัวกรองที่เหลือทำงานกับ df ตรงๆ อยู่แล้วโดยไม่สนใจว่ามีกี่ปี
+    # ปนกันอยู่ (aggregate ผ่าน groupby/value_counts เฉยๆ) จึงรองรับ "ทั้งหมด" ได้โดยไม่ต้องแก้
+    # จุดอื่น — ยกเว้นการแสดงผล SELECTED_YEAR ในข้อความหัวข้อต่างๆ ที่ใช้ label นี้ตรงๆ
     years = [int(y) for y in sorted(df["ปี"].dropna().unique(), reverse=True)]
-    sel_year = st.sidebar.selectbox("📅 ปีข้อมูล (GDA)", years, index=0, key="f_year",
-                                    on_change=_reset_year_dependent_filters)
-    df = df[df["ปี"] == sel_year]
+    year_options = [str(y) for y in years] + ["ทั้งหมด"]
+    sel_year_choice = st.sidebar.selectbox("📅 ปีข้อมูล (GDA)", year_options, index=0, key="f_year",
+                                           on_change=_reset_year_dependent_filters)
+    if sel_year_choice == "ทั้งหมด":
+        sel_year = f"{min(years)}-{max(years)} (ทุกปี)"
+    else:
+        sel_year = int(sel_year_choice)
+        df = df[df["ปี"] == sel_year]
     has_zone = "เขตสุขภาพ" in df.columns
 
     # ค่าที่เลือกอยู่ ณ ตอนต้นของ rerun นี้ (หลังจาก callback ของ interaction ล่าสุดทำงานแล้ว)
