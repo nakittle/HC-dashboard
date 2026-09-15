@@ -588,16 +588,24 @@ def build_sidebar_filters(df):
     cur_crits = st.session_state.get("f_crits")
 
     def others(exclude):
+        # ใช้ truthy check (ไม่ใช่ "is not None" เฉย ๆ) โดยตั้งใจ: ตัวกรองอื่นที่กำลังถูกเคลียร์
+        # ไว้ที่ "เลือกไม่มีเลย" ([]) ระหว่างที่ผู้ใช้กำลังจะเลือกใหม่ ต้องไม่ทำให้ตัวเลือกของ
+        # ตัวกรองนี้ (ที่ไม่เกี่ยวกัน) หายไปหมดไปด้วย — บั๊กจริงที่พบ (2026-09-15): กด "เลือก
+        # ทั้งหมด" ออกในตัวกรองกลุ่ม HC (ตั้งใจจะเลือกแค่บางกลุ่มต่อ) ทำให้ตัวกรอง Criteria
+        # (คนละตัวกันเลย) เหลือ 0 ตัวเลือกให้กดทันที ล็อกผู้ใช้ไม่ให้ทำอะไรต่อได้. ตาราง/หน้า
+        # จริง (ตัวแปร f ด้านล่าง) ยังใช้ sel_* ตรง ๆ อยู่ดี จึงยังโชว์ 0 แถวถูกต้องถ้าผู้ใช้
+        # ตั้งใจเลือกไม่มีเลยจริง ๆ ในตัวกรองนั้น — การเปลี่ยนนี้กระทบแค่ "ตัวเลือกที่โชว์ให้กด
+        # ในตัวกรองอื่น" ไม่กระทบผลลัพธ์สุดท้ายที่แสดง
         d = df
-        if exclude != "region" and cur_regions is not None:
+        if exclude != "region" and cur_regions:
             d = d[d["ภูมิภาค"].isin(cur_regions)]
-        if has_zone and exclude != "zone" and cur_zones is not None:
+        if has_zone and exclude != "zone" and cur_zones:
             d = d[d["เขตสุขภาพ"].isin(cur_zones)]
-        if exclude != "prov" and cur_provs is not None:
+        if exclude != "prov" and cur_provs:
             d = d[d["จังหวัด"].isin(cur_provs)]
-        if exclude != "group" and cur_groups is not None:
+        if exclude != "group" and cur_groups:
             d = d[d["HC_Group_TH"].isin(cur_groups)]
-        if exclude != "crit" and cur_crits is not None:
+        if exclude != "crit" and cur_crits:
             d = d[d["Criteria"].isin(cur_crits)]
         return d
 
