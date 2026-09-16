@@ -1381,18 +1381,18 @@ CRIT_RULE_LABEL_TH = {
     "sodium_max_per_100ml_tomato_based": "โซเดียม {op} {v} มก. ต่อ 100 มล. (สูตรมะเขือเทศ)",
     "sodium_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก.",
     "sodium_max_per_pack_if_over_50g": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (กรณีหน่วยบริโภค > 50 ก.)",
-    "sodium_small_dry_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบแห้ง)",
-    "sodium_small_wet_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก. (บรรจุเล็ก แบบเปียก)",
-    "sodium_large_dry_max_per_pack": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบแห้ง)",
-    "sodium_large_wet_max_per_pack": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ แบบเปียก)",
+    "sodium_small_dry_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก. (บรรจุเล็ก {small} แบบแห้ง)",
+    "sodium_small_wet_max_per_50g": "โซเดียม {op} {v} มก. ต่อ 50 ก. (บรรจุเล็ก {small} แบบเปียก)",
+    "sodium_large_dry_max_per_pack": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ {large} แบบแห้ง)",
+    "sodium_large_wet_max_per_pack": "โซเดียม {op} {v} มก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ {large} แบบเปียก)",
     "fat_max": "ไขมันทั้งหมด {op} {v} ก. {basis}",
     "fat_max_per_100ml": "ไขมันทั้งหมด {op} {v} ก. ต่อ 100 มล.",
     "fat_max_per_pack_if_300_500ml": "ไขมันทั้งหมด {op} {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ขนาด 300–500 มล.)",
     "fat_max_per_pack_if_oversize": "ไขมันทั้งหมด {op} {v} ก. ต่อหน่วยบริโภค (บรรจุภัณฑ์ใหญ่กว่าเกณฑ์มาตรฐาน)",
     "saturated_fat_max": "ไขมันอิ่มตัว {op} {v} ก. {basis}",
     "saturated_fat_max_per_100ml": "ไขมันอิ่มตัว {op} {v} ก. ต่อ 100 มล.",
-    "satfat_small_max_per_50g": "ไขมันอิ่มตัว {op} {v} ก. ต่อ 50 ก. (บรรจุเล็ก)",
-    "satfat_large_max_per_pack": "ไขมันอิ่มตัว {op} {v} ก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่)",
+    "satfat_small_max_per_50g": "ไขมันอิ่มตัว {op} {v} ก. ต่อ 50 ก. (บรรจุเล็ก {small})",
+    "satfat_large_max_per_pack": "ไขมันอิ่มตัว {op} {v} ก. ต่อบรรจุภัณฑ์ (บรรจุใหญ่ {large})",
     "energy_max": "พลังงาน {op} {v} กิโลแคลอรี {basis}",
     "energy_max_per_100ml": "พลังงาน {op} {v} กิโลแคลอรี ต่อ 100 มล.",
     "energy_max_per_serving": "พลังงาน {op} {v} กิโลแคลอรี ต่อหน่วยบริโภค",
@@ -1432,9 +1432,16 @@ def _format_criteria_rules(rules, basis):
         if key in rules:
             notes.append(label.format(v=_crit_fmt_num(rules[key])))
 
+    # เกณฑ์ตัดบรรจุเล็ก/ใหญ่ของกลุ่มที่ใช้กลไก _special (ปัจจุบันมีแค่บะหมี่กึ่งสำเร็จรูป) — ฝัง
+    # ปริมาณจริงเข้าไปในแต่ละ bullet เอง (ไม่แยกเป็น note ต่างหาก เพราะเป็นเกณฑ์ตัดของกลุ่มย่อย
+    # นี้โดยตรง ไม่ใช่พารามิเตอร์ประกอบของกฎอื่นแบบ oversize_threshold_*) ค่า default 75 ต้อง
+    # ตรงกับ rules.py's _eval_noodle() ที่ใช้ rules.get("pack_small_threshold_g", 75) เป๊ะ
+    pack_thr = _crit_fmt_num(rules.get("pack_small_threshold_g", 75))
+    small_label, large_label = f"< {pack_thr} ก.", f"≥ {pack_thr} ก."
+
     basis_th = CRIT_BASIS_TH.get(basis, "")
     for key, value in rules.items():
-        if key in ("operator",) or key in CRIT_CONTEXT_LABEL_TH:
+        if key in ("operator", "pack_small_threshold_g", "_special") or key in CRIT_CONTEXT_LABEL_TH:
             continue
         if key == "fat_two_tier":
             ratio_pct = round(value.get("satfat_to_fat_ratio_max", 0) * 100)
@@ -1452,7 +1459,8 @@ def _format_criteria_rules(rules, basis):
                 bullets.append("ห้ามเติมน้ำมันเพิ่ม (Added Oil)")
         else:
             template = CRIT_RULE_LABEL_TH.get(key)
-            bullets.append(template.format(v=_crit_fmt_num(value), basis=basis_th, op=op) if template
+            bullets.append(template.format(v=_crit_fmt_num(value), basis=basis_th, op=op,
+                                           small=small_label, large=large_label) if template
                            else f"{key}: {value}")  # fallback กันไม่ให้ key ใหม่ในอนาคตหายไปเงียบๆ
     return bullets, notes
 
