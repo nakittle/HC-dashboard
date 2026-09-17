@@ -32,12 +32,14 @@ COLORS = {
     "3.1": "#2FBF8F",   # emerald - ผ่าน
     "3.2": "#FF6B6B",   # coral   - ไม่ผ่าน
     "3.3": "#FFC857",   # amber   - ข้อมูลไม่พอ
+    "3.4": "#E0793A",   # burnt orange - ข้อมูลไม่พอ (ไม่ผ่านแล้ว) — ruling 2026-09-17
     "OOS": "#7E97A3",   # slate   - นอกขอบเขต
 }
 LABEL_TH = {
     "3.1": "3.1 ผ่าน HC",
     "3.2": "3.2 ไม่ผ่าน HC",
     "3.3": "3.3 ข้อมูลไม่พอ",
+    "3.4": "3.4 ข้อมูลไม่พอ (ไม่ผ่าน)",
     "OOS": "นอกขอบเขต (OOS)",
 }
 NUTRITION_CLAIM_COLS = ["ไม่มีน้ำตาล", "พลังงานต่ำ", "ไขมันต่ำ", "คอเลสเตอรอลต่ำ", "โซเดียมต่ำ"]
@@ -115,7 +117,8 @@ def show(fig, height=None, on_select=None, key=None):
 CRITERIA_BADGE = {
     "3.1": ("✅", "3.1 ผ่าน HC", "#1E9E76"),
     "3.2": ("❌", "3.2 ไม่ผ่าน HC", "#C94B53"),
-    "3.3": ("⚠️", "3.3 ข้อมูลไม่พอ", "#C9942F"),
+    "3.3": ("⚠️", "3.3 ข้อมูลไม่พอ (ผ่านเท่าที่มีข้อมูล)", "#C9942F"),
+    "3.4": ("⚠️❌", "3.4 ข้อมูลไม่พอ (ไม่ผ่านแล้วเท่าที่มีข้อมูล)", "#C0642A"),
     "OOS": ("➖", "นอกขอบเขต (OOS)", "#4B6470"),
 }
 
@@ -642,7 +645,7 @@ def build_sidebar_filters(df):
 
     sel_crits = faceted_dropdown("📊 เกณฑ์ Criteria", "f_crits",
                                  others("crit")["Criteria"].value_counts()
-                                 .reindex(["3.1", "3.2", "3.3", "OOS"]).dropna().astype(int).to_dict(),
+                                 .reindex(["3.1", "3.2", "3.3", "3.4", "OOS"]).dropna().astype(int).to_dict(),
                                  fmt=lambda x: LABEL_TH.get(x, x))
 
     f = df[df["ภูมิภาค"].isin(sel_regions) & df["HC_Group_TH"].isin(sel_groups)
@@ -678,6 +681,7 @@ def page_overview():
     n31 = int((f["Criteria"] == "3.1").sum())
     n32 = int((f["Criteria"] == "3.2").sum())
     n33 = int((f["Criteria"] == "3.3").sum())
+    n34 = int((f["Criteria"] == "3.4").sum())
     noos = int((f["Criteria"] == "OOS").sum())
     in_scope = total - noos
 
@@ -696,6 +700,8 @@ def page_overview():
          "linear-gradient(135deg,#C94B53,#FF6B6B)"),
         ("⚠️ ข้อมูลไม่พอ (3.3)", f"{n33:,}", pct(n33),
          "linear-gradient(135deg,#C9942F,#FFC857)"),
+        ("⚠️❌ ไม่พอ+ไม่ผ่าน (3.4)", f"{n34:,}", pct(n34),
+         "linear-gradient(135deg,#C0642A,#E0793A)"),
         ("➖ นอกขอบเขต", f"{noos:,}", pct(noos),
          "linear-gradient(135deg,#4B6470,#7E97A3)"),
     ])
@@ -704,14 +710,15 @@ def page_overview():
         st.markdown(
             f'<div class="insight">📊 <b>อยู่ในขอบเขต HC</b> {in_scope:,} รายการ — '
             f'ผ่าน <b>{n31/in_scope*100:.1f}%</b> · ไม่ผ่าน <b>{n32/in_scope*100:.1f}%</b> · '
-            f'ข้อมูลไม่พอ <b>{n33/in_scope*100:.1f}%</b></div>',
+            f'ข้อมูลไม่พอ <b>{n33/in_scope*100:.1f}%</b> · '
+            f'ไม่พอ+ไม่ผ่าน <b>{n34/in_scope*100:.1f}%</b></div>',
             unsafe_allow_html=True)
 
     col_a, col_b = st.columns([1, 1.6])
     with col_a:
         with st.container(border=True):
             st.subheader("สัดส่วน Criteria")
-            cc = f["Criteria"].value_counts().reindex(["3.1", "3.2", "3.3", "OOS"]).fillna(0)
+            cc = f["Criteria"].value_counts().reindex(["3.1", "3.2", "3.3", "3.4", "OOS"]).fillna(0)
             fig = go.Figure(go.Pie(
                 labels=[LABEL_TH[c] for c in cc.index], values=cc.values, hole=0.6,
                 marker=dict(colors=[COLORS[c] for c in cc.index],
@@ -843,10 +850,10 @@ def page_groups():
          f"📦 {len(f):,} ผลิตภัณฑ์")
 
     pivot = f.groupby(["HC_Group_TH", "Criteria"]).size().unstack(fill_value=0)
-    for c in ["3.1", "3.2", "3.3", "OOS"]:
+    for c in ["3.1", "3.2", "3.3", "3.4", "OOS"]:
         if c not in pivot.columns:
             pivot[c] = 0
-    pivot = pivot[["3.1", "3.2", "3.3", "OOS"]]
+    pivot = pivot[["3.1", "3.2", "3.3", "3.4", "OOS"]]
     pivot["Total"] = pivot.sum(axis=1)
     pivot = pivot.sort_values("Total")
 
@@ -854,7 +861,7 @@ def page_groups():
         st.subheader("กลุ่ม HC × Criteria")
         chart_pivot = pivot.drop(index="นอกขอบเขต HC", errors="ignore")
         fig = go.Figure()
-        for c in ["3.1", "3.2", "3.3"]:
+        for c in ["3.1", "3.2", "3.3", "3.4"]:
             fig.add_trace(go.Bar(
                 name=LABEL_TH[c], y=chart_pivot.index, x=chart_pivot[c], orientation="h",
                 marker_color=COLORS[c], text=chart_pivot[c].where(chart_pivot[c] > 0, ""),
@@ -874,7 +881,7 @@ def page_groups():
         det["Pass Rate (%)"] = (det["3.1"] / det["Total"].replace(0, 1) * 100).round(1)
         det = det.reset_index().rename(columns={
             "HC_Group_TH": "กลุ่ม HC", "3.1": "ผ่าน 3.1", "3.2": "ไม่ผ่าน 3.2",
-            "3.3": "ข้อมูลไม่พอ 3.3", "OOS": "OOS", "Total": "รวม"})
+            "3.3": "ข้อมูลไม่พอ 3.3", "3.4": "ไม่พอ+ไม่ผ่าน 3.4", "OOS": "OOS", "Total": "รวม"})
         det = det.sort_values("รวม", ascending=False)
         st.dataframe(det, use_container_width=True, hide_index=True)
 
@@ -890,12 +897,12 @@ def page_geo():
         with st.container(border=True):
             st.subheader("ภูมิภาค × Criteria")
             region_pv = f.groupby(["ภูมิภาค", "Criteria"]).size().unstack(fill_value=0)
-            for c in ["3.1", "3.2", "3.3", "OOS"]:
+            for c in ["3.1", "3.2", "3.3", "3.4", "OOS"]:
                 if c not in region_pv.columns:
                     region_pv[c] = 0
-            region_pv = region_pv[["3.1", "3.2", "3.3", "OOS"]]
+            region_pv = region_pv[["3.1", "3.2", "3.3", "3.4", "OOS"]]
             fig = go.Figure()
-            for c in ["3.1", "3.2", "3.3", "OOS"]:
+            for c in ["3.1", "3.2", "3.3", "3.4", "OOS"]:
                 fig.add_trace(go.Bar(name=LABEL_TH[c], x=region_pv.index, y=region_pv[c],
                                      marker_color=COLORS[c]))
             fig.update_layout(barmode="stack", height=420, margin=dict(t=20, b=20, l=20, r=20),
@@ -951,13 +958,13 @@ def page_zone():
         with st.container(border=True):
             st.subheader("เขตสุขภาพ × Criteria")
             zpv = f.groupby(["เขตสุขภาพ", "Criteria"]).size().unstack(fill_value=0)
-            for c in ["3.1", "3.2", "3.3", "OOS"]:
+            for c in ["3.1", "3.2", "3.3", "3.4", "OOS"]:
                 if c not in zpv.columns:
                     zpv[c] = 0
-            zpv = zpv[["3.1", "3.2", "3.3", "OOS"]].sort_index()
+            zpv = zpv[["3.1", "3.2", "3.3", "3.4", "OOS"]].sort_index()
             zlabels = [f"เขต {z}" for z in zpv.index]
             fig = go.Figure()
-            for c in ["3.1", "3.2", "3.3", "OOS"]:
+            for c in ["3.1", "3.2", "3.3", "3.4", "OOS"]:
                 fig.add_trace(go.Bar(name=LABEL_TH[c], x=zlabels, y=zpv[c], marker_color=COLORS[c]))
             fig.update_layout(barmode="stack", height=440, margin=dict(t=20, b=20, l=20, r=20),
                               yaxis_title="จำนวน", xaxis_title="",
@@ -999,12 +1006,14 @@ def page_zone():
         st.subheader("ตารางสรุปเขตสุขภาพ")
         zd = f.groupby("เขตสุขภาพ").agg(
             Total=("ลำดับ", "count"), Passed=("Passed", "sum"), Failed=("Failed", "sum"),
-            Insufficient=("Insufficient", "sum"), OOS=("OutOfScope", "sum")).reset_index()
+            Insufficient=("Insufficient", "sum"), InsufficientFailing=("InsufficientFailing", "sum"),
+            OOS=("OutOfScope", "sum")).reset_index()
         zd["In_Scope"] = zd["Total"] - zd["OOS"]
         zd["Pass_Rate (%)"] = (zd["Passed"] / zd["Total"].replace(0, 1) * 100).round(1)
         zd = zd.rename(columns={
             "เขตสุขภาพ": "เขต", "Total": "รวม", "Passed": "ผ่าน 3.1", "Failed": "ไม่ผ่าน 3.2",
-            "Insufficient": "ข้อมูลไม่พอ 3.3", "OOS": "OOS", "In_Scope": "ในขอบเขต"})
+            "Insufficient": "ข้อมูลไม่พอ 3.3", "InsufficientFailing": "ไม่พอ+ไม่ผ่าน 3.4",
+            "OOS": "OOS", "In_Scope": "ในขอบเขต"})
         st.dataframe(zd, use_container_width=True, hide_index=True)
 
 
@@ -1108,8 +1117,9 @@ def page_nutrients():
         )
 
     # join ด้วย key ผสม (ปี, ลำดับ) — ลำดับซ้ำกันข้ามปีได้ ห้ามใช้ ลำดับ เดี่ยวๆ
-    f32 = f[f["Criteria"] == "3.2"]
-    selected_keys = set(zip(f32["ปี"], f32["ลำดับ"]))
+    # รวม 3.4 ด้วย (ruling 2026-09-17) — มี Failed_Nutrients จริงเหมือน 3.2
+    f_fail = f[f["Criteria"].isin(["3.2", "3.4"])]
+    selected_keys = set(zip(f_fail["ปี"], f_fail["ลำดับ"]))
     if selected_keys:
         fail_keys = pd.Series(list(zip(fail_df["ปี"], fail_df["ลำดับ"])), index=fail_df.index)
         ff = fail_df[fail_keys.isin(selected_keys)]
@@ -1134,7 +1144,7 @@ def page_nutrients():
                 fig.update_traces(textposition="outside", cliponaxis=False)
                 show(fig)
             else:
-                st.info("ไม่มีผลิตภัณฑ์ที่ตก (3.2) ในตัวกรองนี้")
+                st.info("ไม่มีผลิตภัณฑ์ที่ตก (3.2/3.4) ในตัวกรองนี้")
     with col_f2:
         with st.container(border=True):
             st.subheader("สัดส่วนการตกของสารหลัก")
