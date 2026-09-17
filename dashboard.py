@@ -852,14 +852,15 @@ def page_groups():
 
     with st.container(border=True):
         st.subheader("กลุ่ม HC × Criteria")
+        chart_pivot = pivot.drop(index="นอกขอบเขต HC", errors="ignore")
         fig = go.Figure()
-        for c in ["3.1", "3.2", "3.3", "OOS"]:
+        for c in ["3.1", "3.2", "3.3"]:
             fig.add_trace(go.Bar(
-                name=LABEL_TH[c], y=pivot.index, x=pivot[c], orientation="h",
-                marker_color=COLORS[c], text=pivot[c].where(pivot[c] > 0, ""),
+                name=LABEL_TH[c], y=chart_pivot.index, x=chart_pivot[c], orientation="h",
+                marker_color=COLORS[c], text=chart_pivot[c].where(chart_pivot[c] > 0, ""),
                 textposition="inside", insidetextanchor="middle", textangle=0,
                 cliponaxis=False))
-        fig.update_layout(barmode="stack", height=max(420, len(pivot) * 36),
+        fig.update_layout(barmode="stack", height=max(420, len(chart_pivot) * 36),
                           margin=dict(t=20, b=20, l=20, r=20),
                           xaxis_title="จำนวน", yaxis=dict(title="", automargin=True),
                           uniformtext=dict(mode="show", minsize=11),
