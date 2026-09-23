@@ -32,6 +32,7 @@ export_passed_3_1.py
 
 # ─── Private engine artifacts (ห้าม push) ──────────────────────
 progress.md
+rawdata.md
 tests/
 docs/
 scripts/
